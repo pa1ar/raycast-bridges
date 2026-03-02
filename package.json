@@ -1,0 +1,71 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "raycast-agents",
+  "title": "Agents",
+  "description": "Add AI capabilities by connecting APIs and local data sources",
+  "icon": "extension-icon.png",
+  "author": "pa1ar",
+  "categories": ["Productivity", "Developer Tools"],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "add-capability",
+      "title": "Add Capability",
+      "description": "Add a new API or data source capability",
+      "mode": "view"
+    },
+    {
+      "name": "manage-capabilities",
+      "title": "Manage Capabilities",
+      "description": "List, edit, and remove installed capabilities",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "anthropicApiKey",
+      "title": "Anthropic API Key",
+      "description": "Your Anthropic API key for scaffolding new capabilities",
+      "type": "password",
+      "required": true
+    }
+  ],
+  "tools": [
+    {
+      "name": "list-capabilities",
+      "title": "List Capabilities",
+      "description": "List installed capabilities (name + description only). Always call this first, then get-capability-guide before making API calls."
+    },
+    {
+      "name": "get-capability-guide",
+      "title": "Get Capability Guide",
+      "description": "Load the full API documentation (endpoints, auth, examples) for a capability. Call this after list-capabilities and before calling the API."
+    },
+    {
+      "name": "call-capability",
+      "title": "Call Capability",
+      "description": "Make an authenticated API request to a capability. Always call get-capability-guide first to get endpoint documentation."
+    }
+  ],
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.59",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@raycast/api": "^1.93.2",
+    "@raycast/utils": "^1.19.1"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "22.13.10",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
