@@ -1,8 +1,8 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "raycast-agents",
-  "title": "Agents",
-  "description": "Add AI capabilities by connecting APIs and local data sources",
+  "name": "bridges",
+  "title": "Bridges",
+  "description": "Connect any REST API to Raycast AI — scaffolded by an agent, callable from any conversation",
   "icon": "extension-icon.png",
   "author": "pa1ar",
   "categories": [

@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 
-export const AGENTS_DIR = join(homedir(), ".raycast-agents");
+export const AGENTS_DIR = join(homedir(), ".bridges");
 export const SOURCES_DIR = join(AGENTS_DIR, "sources");
 export const SKILLS_DIR = join(AGENTS_DIR, "skills");
 

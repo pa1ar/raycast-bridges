@@ -31,11 +31,11 @@ function findClaude(): string | null {
 import { sourceConfigPath, sourceDir, sourceGuidePath } from "./paths";
 import type { SourceConfig } from "./types";
 
-const SCAFFOLD_LOG = join(homedir(), ".raycast-agents", "scaffold.log");
+const SCAFFOLD_LOG = join(homedir(), ".bridges", "scaffold.log");
 
 function appendLog(msg: string) {
   try {
-    mkdirSync(join(homedir(), ".raycast-agents"), { recursive: true });
+    mkdirSync(join(homedir(), ".bridges"), { recursive: true });
     writeFileSync(SCAFFOLD_LOG, `${new Date().toISOString()} ${msg}\n`, {
       flag: "a",
     });
@@ -46,7 +46,7 @@ function appendLog(msg: string) {
 
 const SCAFFOLD_PROMPT = (description: string) =>
   `
-You are scaffolding a new API capability for a local Raycast AI extension called Raycast Agents.
+You are scaffolding a new API capability for a local Raycast AI extension called Bridges.
 
 User description: ${description}
 

@@ -1,6 +1,6 @@
-# Raycast Agents
+# Bridges
 
-Expand Raycast AI with custom API connections — scaffolded by an AI agent, stored locally, callable from any Raycast AI conversation.
+Connect any REST API to Raycast AI — scaffolded by an agent, stored locally, callable from any conversation.
 
 ## Vision
 
@@ -26,19 +26,19 @@ Inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-
 
 1. Clone and open in Raycast dev mode:
    ```sh
-   cd raycast-agents
+   cd raycast-bridges
    npm install
    npm run dev
    ```
-2. In Raycast, open **Agents > Add Capability** preferences and add your Anthropic API key.
+2. In Raycast, open **Bridges > Add Capability** preferences and add your Anthropic API key.
 3. Run **Add Capability** and describe any REST API.
 
 ## State
 
-All data stored at `~/.raycast-agents/sources/{slug}/`:
+All data stored at `~/.bridges/sources/{slug}/`:
 
 ```
-~/.raycast-agents/
+~/.bridges/
 ├── sources/
 │   └── craft-api/
 │       ├── config.json          # base URL, auth type, headers

@@ -16,16 +16,16 @@ import {
 const home = homedir();
 
 describe("paths", () => {
-  it("AGENTS_DIR points to ~/.raycast-agents", () => {
-    expect(AGENTS_DIR).toBe(join(home, ".raycast-agents"));
+  it("AGENTS_DIR points to ~/.bridges", () => {
+    expect(AGENTS_DIR).toBe(join(home, ".bridges"));
   });
 
   it("SOURCES_DIR is under AGENTS_DIR", () => {
-    expect(SOURCES_DIR).toBe(join(home, ".raycast-agents", "sources"));
+    expect(SOURCES_DIR).toBe(join(home, ".bridges", "sources"));
   });
 
   it("SKILLS_DIR is under AGENTS_DIR", () => {
-    expect(SKILLS_DIR).toBe(join(home, ".raycast-agents", "skills"));
+    expect(SKILLS_DIR).toBe(join(home, ".bridges", "skills"));
   });
 
   it("sourceDir returns correct path", () => {

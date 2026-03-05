@@ -1,4 +1,4 @@
-# Raycast Agents — Dev Notes
+# Bridges — Dev Notes
 
 ## Commands & Tools
 
@@ -14,7 +14,7 @@
 2. `get-capability-guide` — returns full guide.md for a source (call once, stays in history)
 3. `call-capability` — makes the actual HTTP request with injected auth
 
-**State on disk:** `~/.raycast-agents/sources/{slug}/`
+**State on disk:** `~/.bridges/sources/{slug}/`
 - `config.json` — slug, name, baseUrl, authType, defaultHeaders, enabled
 - `guide.md` — API docs for the AI (endpoints, workflow, examples)
 - `.credential-cache.json` — stored token/key (never committed)
