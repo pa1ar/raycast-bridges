@@ -1,10 +1,18 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { execSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import {
+  execSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
 // use the system-installed claude binary (avoids import.meta.url issues in bundled env)
-function findClaude(): string {
+function findClaude(): string | null {
   const candidates = [
     join(homedir(), ".local/bin/claude"),
     "/usr/local/bin/claude",
@@ -13,8 +21,12 @@ function findClaude(): string {
   for (const p of candidates) {
     if (existsSync(p)) return p;
   }
-  try { return execSync("which claude", { encoding: "utf-8" }).trim(); } catch { /* ignore */ }
-  throw new Error("claude CLI not found. Install Claude Code: https://claude.ai/download");
+  try {
+    return execSync("which claude", { encoding: "utf-8" }).trim();
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 import { sourceConfigPath, sourceDir, sourceGuidePath } from "./paths";
 import type { SourceConfig } from "./types";
@@ -24,11 +36,16 @@ const SCAFFOLD_LOG = join(homedir(), ".raycast-agents", "scaffold.log");
 function appendLog(msg: string) {
   try {
     mkdirSync(join(homedir(), ".raycast-agents"), { recursive: true });
-    writeFileSync(SCAFFOLD_LOG, `${new Date().toISOString()} ${msg}\n`, { flag: "a" });
-  } catch { /* ignore */ }
+    writeFileSync(SCAFFOLD_LOG, `${new Date().toISOString()} ${msg}\n`, {
+      flag: "a",
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
-const SCAFFOLD_PROMPT = (description: string) => `
+const SCAFFOLD_PROMPT = (description: string) =>
+  `
 You are scaffolding a new API capability for a local Raycast AI extension called Raycast Agents.
 
 User description: ${description}
@@ -112,6 +129,19 @@ export async function scaffoldSource(
   const workDir = sourceDir(tempSlug);
   mkdirSync(workDir, { recursive: true });
 
+  const claudePath = findClaude();
+  if (!claudePath) {
+    const msg =
+      "Claude CLI not found. Install it from https://claude.ai/download";
+    onOutput(msg);
+    try {
+      rmSync(workDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+    return { success: false, error: msg };
+  }
+
   onOutput("Starting agent...");
 
   try {
@@ -127,7 +157,7 @@ export async function scaffoldSource(
           CLAUDE_CODE_SESSION_ID: undefined,
           CLAUDE_CODE_ENTRYPOINT: undefined,
         },
-        pathToClaudeCodeExecutable: findClaude(),
+        pathToClaudeCodeExecutable: claudePath,
         allowedTools: ["Write", "Read", "WebSearch", "WebFetch", "Bash"],
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
@@ -143,7 +173,9 @@ export async function scaffoldSource(
             lines.forEach(onOutput);
             appendLog(`agent: ${block.text.slice(0, 100)}`);
           } else if (block.type === "tool_use") {
-            onOutput(`[${block.name}] ${JSON.stringify(block.input).slice(0, 80)}`);
+            onOutput(
+              `[${block.name}] ${JSON.stringify(block.input).slice(0, 80)}`,
+            );
           }
         }
       }
@@ -153,13 +185,21 @@ export async function scaffoldSource(
     appendLog(`agent error: ${msg}`);
     onOutput(`Error: ${msg}`);
     // clean up temp dir
-    try { require("child_process").execSync(`rm -rf "${workDir}"`); } catch { /* ignore */ }
+    try {
+      rmSync(workDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
     return { success: false, error: msg };
   }
 
   // read what the agent wrote
   if (!existsSync(sourceConfigPath(tempSlug))) {
-    try { require("child_process").execSync(`rm -rf "${workDir}"`); } catch { /* ignore */ }
+    try {
+      rmSync(workDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
     const err = "Agent did not produce config.json";
     appendLog(err);
     return { success: false, error: err };
@@ -169,7 +209,11 @@ export async function scaffoldSource(
   try {
     config = JSON.parse(readFileSync(sourceConfigPath(tempSlug), "utf-8"));
   } catch (e) {
-    try { require("child_process").execSync(`rm -rf "${workDir}"`); } catch { /* ignore */ }
+    try {
+      rmSync(workDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
     return { success: false, error: `Invalid config.json: ${e}` };
   }
 
@@ -182,11 +226,22 @@ export async function scaffoldSource(
     renameSync(workDir, finalDir);
   } catch {
     // dir exists — overwrite config + guide, keep credentials
-    writeFileSync(sourceConfigPath(config.slug), JSON.stringify(config, null, 2), "utf-8");
+    writeFileSync(
+      sourceConfigPath(config.slug),
+      JSON.stringify(config, null, 2),
+      "utf-8",
+    );
     if (existsSync(sourceGuidePath(tempSlug))) {
-      writeFileSync(sourceGuidePath(config.slug), readFileSync(sourceGuidePath(tempSlug)));
+      writeFileSync(
+        sourceGuidePath(config.slug),
+        readFileSync(sourceGuidePath(tempSlug)),
+      );
     }
-    try { require("child_process").execSync(`rm -rf "${workDir}"`); } catch { /* ignore */ }
+    try {
+      rmSync(workDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
   }
 
   onOutput(`Done: ${config.name}`);

@@ -1,13 +1,11 @@
 # Raycast Agents — Dev Notes
 
-## Project
-
-Local Raycast extension. Not for the store — personal/dev use only.
-
 ## Commands & Tools
 
-- `bun run dev` — start dev mode (hot reload in Raycast)
-- `bun run build` — production build
+- `npm run dev` — start dev mode (hot reload in Raycast)
+- `npm run build` — production build
+- `npm run lint` — lint + prettier check
+- `npm run test` — run vitest
 
 ## Architecture
 

@@ -6,7 +6,9 @@ interface Input {
   source: string;
 }
 
-export default async function getCapabilityGuide(input: Input): Promise<{ text: string }> {
+export default async function getCapabilityGuide(
+  input: Input,
+): Promise<{ text: string }> {
   // try API source first
   const config = readSourceConfig(input.source);
   if (config) {
@@ -42,5 +44,7 @@ export default async function getCapabilityGuide(input: Input): Promise<{ text: 
     return { text: skillContent };
   }
 
-  return { text: `Capability '${input.source}' not found. Call list-capabilities to see available options.` };
+  return {
+    text: `Capability '${input.source}' not found. Call list-capabilities to see available options.`,
+  };
 }

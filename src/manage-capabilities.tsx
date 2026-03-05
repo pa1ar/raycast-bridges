@@ -12,12 +12,28 @@ import {
   useNavigation,
 } from "@raycast/api";
 import { useState } from "react";
-import { deleteSource, loadAllSources, readSourceConfig, writeSourceConfig } from "./lib/sources";
+import {
+  deleteSource,
+  loadAllSources,
+  readSourceConfig,
+  writeSourceConfig,
+} from "./lib/sources";
 import { deleteSkill, loadAllSkills, writeSkillMd } from "./lib/skills";
-import type { AuthType, LoadedSource, SkillInfo, SourceConfig } from "./lib/types";
+import type {
+  AuthType,
+  LoadedSource,
+  SkillInfo,
+  SourceConfig,
+} from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 
-function EditSourceForm({ config, onDone }: { config: SourceConfig; onDone: () => void }) {
+function EditSourceForm({
+  config,
+  onDone,
+}: {
+  config: SourceConfig;
+  onDone: () => void;
+}) {
   async function handleSubmit(values: {
     name: string;
     baseUrl: string;
@@ -50,13 +66,35 @@ function EditSourceForm({ config, onDone }: { config: SourceConfig; onDone: () =
         </ActionPanel>
       }
     >
-      <Form.TextField id="name" title="Name" defaultValue={config.name} />
-      <Form.TextField id="baseUrl" title="Base URL" defaultValue={config.baseUrl} />
-      <Form.TextField id="description" title="Description" defaultValue={config.description ?? ""} />
-      <Form.Dropdown id="authType" title="Auth Type" defaultValue={config.authType}>
+      <Form.TextField
+        id="name"
+        title="Name"
+        placeholder="My API"
+        defaultValue={config.name}
+      />
+      <Form.TextField
+        id="baseUrl"
+        title="Base URL"
+        placeholder="https://api.example.com/v1"
+        defaultValue={config.baseUrl}
+      />
+      <Form.TextField
+        id="description"
+        title="Description"
+        placeholder="One-line description"
+        defaultValue={config.description ?? ""}
+      />
+      <Form.Dropdown
+        id="authType"
+        title="Auth Type"
+        defaultValue={config.authType}
+      >
         <Form.Dropdown.Item value="bearer" title="Bearer Token" />
         <Form.Dropdown.Item value="api-key" title="API Key (custom header)" />
-        <Form.Dropdown.Item value="basic" title="Basic Auth (username:password)" />
+        <Form.Dropdown.Item
+          value="basic"
+          title="Basic Auth (username:password)"
+        />
         <Form.Dropdown.Item value="none" title="None" />
       </Form.Dropdown>
       <Form.TextField
@@ -66,7 +104,11 @@ function EditSourceForm({ config, onDone }: { config: SourceConfig; onDone: () =
         defaultValue={config.apiKeyHeader ?? ""}
         info="Only used when Auth Type is API Key"
       />
-      <Form.Dropdown id="enabled" title="Enabled" defaultValue={String(config.enabled)}>
+      <Form.Dropdown
+        id="enabled"
+        title="Enabled"
+        defaultValue={String(config.enabled)}
+      >
         <Form.Dropdown.Item value="true" title="Enabled" />
         <Form.Dropdown.Item value="false" title="Disabled" />
       </Form.Dropdown>
@@ -74,12 +116,21 @@ function EditSourceForm({ config, onDone }: { config: SourceConfig; onDone: () =
   );
 }
 
-function EditSkillForm({ skill, onDone }: { skill: SkillInfo; onDone: () => void }) {
+function EditSkillForm({
+  skill,
+  onDone,
+}: {
+  skill: SkillInfo;
+  onDone: () => void;
+}) {
   // extract body (everything after the closing ---)
   const bodyMatch = skill.content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
   const defaultInstructions = bodyMatch?.[1]?.trim() ?? skill.content;
 
-  async function handleSubmit(values: { description: string; instructions: string }) {
+  async function handleSubmit(values: {
+    description: string;
+    instructions: string;
+  }) {
     const description = values.description.trim();
     const instructions = values.instructions.trim();
 
@@ -111,11 +162,13 @@ function EditSkillForm({ skill, onDone }: { skill: SkillInfo; onDone: () => void
       <Form.TextField
         id="description"
         title="Description"
+        placeholder="What this skill does"
         defaultValue={skill.description}
       />
       <Form.TextArea
         id="instructions"
         title="Instructions"
+        placeholder="Step-by-step instructions for the AI..."
         defaultValue={defaultInstructions}
       />
     </Form>
@@ -123,12 +176,14 @@ function EditSkillForm({ skill, onDone }: { skill: SkillInfo; onDone: () => void
 }
 
 export default function ManageCapabilities() {
-  const [sources, setSources] = useState<LoadedSource[]>(() => loadAllSources());
+  const [sources, setSources] = useState<LoadedSource[]>(() =>
+    loadAllSources(false),
+  );
   const [skills, setSkills] = useState<SkillInfo[]>(() => loadAllSkills());
   const { push } = useNavigation();
 
   function refresh() {
-    setSources(loadAllSources());
+    setSources(loadAllSources(false));
     setSkills(loadAllSkills());
   }
 
@@ -152,7 +207,10 @@ export default function ManageCapabilities() {
     });
     if (!confirmed) return;
     deleteSkill(name);
-    await showToast({ style: Toast.Style.Success, title: `Skill '${name}' removed` });
+    await showToast({
+      style: Toast.Style.Success,
+      title: `Skill '${name}' removed`,
+    });
     refresh();
   }
 
@@ -197,17 +255,32 @@ export default function ManageCapabilities() {
                   <Action
                     icon={Icon.Pencil}
                     title="Edit"
-                    onAction={() => push(<EditSourceForm config={source.config} onDone={refresh} />)}
+                    onAction={() =>
+                      push(
+                        <EditSourceForm
+                          config={source.config}
+                          onDone={refresh}
+                        />,
+                      )
+                    }
                   />
                   <Action
                     icon={Icon.Key}
                     title="Set Credentials"
                     onAction={() =>
-                      push(<CredentialForm config={source.config} onDone={refresh} onCancel={refresh} />)
+                      push(
+                        <CredentialForm
+                          config={source.config}
+                          onDone={refresh}
+                          onCancel={refresh}
+                        />,
+                      )
                     }
                   />
                   <Action
-                    icon={source.config.enabled ? Icon.CircleDisabled : Icon.Circle}
+                    icon={
+                      source.config.enabled ? Icon.CircleDisabled : Icon.Circle
+                    }
                     title={source.config.enabled ? "Disable" : "Enable"}
                     onAction={() => handleToggle(source)}
                   />
@@ -215,7 +288,9 @@ export default function ManageCapabilities() {
                     icon={Icon.Trash}
                     title="Remove"
                     style={Action.Style.Destructive}
-                    onAction={() => handleDeleteSource(source.config.slug, source.config.name)}
+                    onAction={() =>
+                      handleDeleteSource(source.config.slug, source.config.name)
+                    }
                   />
                 </ActionPanel>
               }
@@ -237,7 +312,9 @@ export default function ManageCapabilities() {
                   <Action
                     icon={Icon.Pencil}
                     title="Edit"
-                    onAction={() => push(<EditSkillForm skill={skill} onDone={refresh} />)}
+                    onAction={() =>
+                      push(<EditSkillForm skill={skill} onDone={refresh} />)
+                    }
                   />
                   <Action
                     icon={Icon.Trash}

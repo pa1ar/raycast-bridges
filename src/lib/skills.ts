@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "fs";
 import { join } from "path";
 import { SKILLS_DIR, skillDir, skillMdPath } from "./paths";
 import type { SkillInfo } from "./types";
@@ -9,7 +17,9 @@ export function ensureSkillsDir() {
 
 export function listSkillNames(): string[] {
   ensureSkillsDir();
-  return readdirSync(SKILLS_DIR).filter((entry) => statSync(join(SKILLS_DIR, entry)).isDirectory());
+  return readdirSync(SKILLS_DIR).filter((entry) =>
+    statSync(join(SKILLS_DIR, entry)).isDirectory(),
+  );
 }
 
 export function readSkillMd(name: string): string {
@@ -23,7 +33,10 @@ export function writeSkillMd(name: string, content: string) {
   writeFileSync(skillMdPath(name), content, "utf-8");
 }
 
-export function parseSkillFrontmatter(content: string): { name: string; description: string } {
+export function parseSkillFrontmatter(content: string): {
+  name: string;
+  description: string;
+} {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { name: "", description: "" };
   const fm = match[1];

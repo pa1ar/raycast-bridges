@@ -12,17 +12,26 @@ The workflow:
 2. **Use it** — ask Raycast AI anything that involves that API. It discovers capabilities, reads the guide once, then makes authenticated requests on your behalf.
 3. **Manage** — edit configs, rotate credentials, disable or remove sources from the Manage Capabilities command.
 
-Everything runs locally. Nothing goes to a server. Not intended for the Raycast Store.
+Everything runs locally. Nothing goes to a server.
 
-## Inspiration
+Inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-source).
 
-Heavily inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-source) — same `sources/` folder structure, same `config.json` + `guide.md` pattern, same agentic scaffolding approach. We stripped the Electron shell and replaced it with Raycast as the UI layer.
+## Prerequisites
 
-## Stack
+- [Raycast](https://raycast.com) with AI enabled
+- An [Anthropic API key](https://console.anthropic.com/) (for scaffolding new capabilities)
+- [Claude CLI](https://claude.ai/download) installed (used by the scaffolding agent)
 
-- [Raycast API](https://developers.raycast.com) — extension framework, AI tools
-- [Anthropic Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript) — agentic scaffolding loop
-- TypeScript + Bun
+## Setup
+
+1. Clone and open in Raycast dev mode:
+   ```sh
+   cd raycast-agents
+   npm install
+   npm run dev
+   ```
+2. In Raycast, open **Agents > Add Capability** preferences and add your Anthropic API key.
+3. Run **Add Capability** and describe any REST API.
 
 ## State
 
@@ -30,20 +39,12 @@ All data stored at `~/.raycast-agents/sources/{slug}/`:
 
 ```
 ~/.raycast-agents/
-└── sources/
-    └── craft-api/
-        ├── config.json          # base URL, auth type, headers
-        ├── guide.md             # API docs injected into Raycast AI
-        └── .credential-cache.json
+├── sources/
+│   └── craft-api/
+│       ├── config.json          # base URL, auth type, headers
+│       ├── guide.md             # API docs injected into Raycast AI
+│       └── .credential-cache.json
+└── skills/
+    └── daily-review/
+        └── SKILL.md             # custom skill instructions
 ```
-
-## Setup
-
-1. Clone and open in Raycast dev mode:
-   ```sh
-   cd raycast-agents
-   bun install
-   bun run dev
-   ```
-2. In Raycast, open **Agents → Add Capability** preferences and add your Anthropic API key.
-3. Run **Add Capability** and describe any REST API.

@@ -1,15 +1,14 @@
 import { loadAllSources } from "../lib/sources";
 import { loadAllSkills } from "../lib/skills";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface Input {}
-
-export default async function listCapabilities(_: Input): Promise<{ text: string }> {
+export default async function listCapabilities(): Promise<{ text: string }> {
   const sources = loadAllSources();
   const skills = loadAllSkills();
 
   if (sources.length === 0 && skills.length === 0) {
-    return { text: "No capabilities installed. Use the 'Add Capability' command in Raycast to install one." };
+    return {
+      text: "No capabilities installed. Use the 'Add Capability' command in Raycast to install one.",
+    };
   }
 
   const lines: string[] = ["Available capabilities:", ""];
@@ -18,7 +17,7 @@ export default async function listCapabilities(_: Input): Promise<{ text: string
     lines.push("[API Sources]");
     for (const s of sources) {
       lines.push(
-        `- ${s.config.slug}: ${s.config.name} — ${s.config.description ?? s.config.baseUrl} [${s.isAuthenticated ? "authenticated" : "NOT authenticated"}]`
+        `- ${s.config.slug}: ${s.config.name} — ${s.config.description ?? s.config.baseUrl} [${s.isAuthenticated ? "authenticated" : "NOT authenticated"}]`,
       );
     }
     lines.push("");
@@ -32,7 +31,9 @@ export default async function listCapabilities(_: Input): Promise<{ text: string
     lines.push("");
   }
 
-  lines.push("Use get-capability-guide with slug/name to load full docs or instructions.");
+  lines.push(
+    "Use get-capability-guide with slug/name to load full docs or instructions.",
+  );
 
   return { text: lines.join("\n") };
 }

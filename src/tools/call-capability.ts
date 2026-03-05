@@ -14,7 +14,9 @@ interface Input {
   params?: string;
 }
 
-export default async function callCapability(input: Input): Promise<Tool.Output> {
+export default async function callCapability(
+  input: Input,
+): Promise<Tool.Output> {
   if (listSkillNames().includes(input.source)) {
     return {
       text: `'${input.source}' is a skill, not an API source. Read its instructions via get-capability-guide and follow them directly.`,
@@ -23,7 +25,9 @@ export default async function callCapability(input: Input): Promise<Tool.Output>
 
   const config = readSourceConfig(input.source);
   if (!config) {
-    return { text: `Capability '${input.source}' not found. Use list-capabilities to see installed capabilities.` };
+    return {
+      text: `Capability '${input.source}' not found. Use list-capabilities to see installed capabilities.`,
+    };
   }
   if (!config.enabled) {
     return { text: `Capability '${input.source}' is disabled.` };
@@ -56,9 +60,10 @@ export default async function callCapability(input: Input): Promise<Tool.Output>
   }
 
   if (!result.ok) {
-    return { text: `${config.name} returned HTTP ${result.status}:\n${result.body}` };
+    return {
+      text: `${config.name} returned HTTP ${result.status}:\n${result.body}`,
+    };
   }
 
   return { text: result.body };
 }
-

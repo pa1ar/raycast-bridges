@@ -8,18 +8,26 @@ import {
   popToRoot,
   showHUD,
   showToast,
-  useNavigation,
 } from "@raycast/api";
 import { useState } from "react";
 import { callApi } from "./lib/api-call";
 import { scaffoldSource } from "./lib/scaffold";
 import { writeSkillMd } from "./lib/skills";
-import { readCredential, readSourceConfig, writeSourceConfig } from "./lib/sources";
+import { readCredential, writeSourceConfig } from "./lib/sources";
 import type { SourceConfig } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 
 type CapabilityType = "api" | "skill";
-type Step = "select-type" | "describe" | "scaffolding" | "authenticate" | "testing" | "fix-url" | "done" | "skill-form" | "skill-done";
+type Step =
+  | "select-type"
+  | "describe"
+  | "scaffolding"
+  | "authenticate"
+  | "testing"
+  | "fix-url"
+  | "done"
+  | "skill-form"
+  | "skill-done";
 
 type TestFailureKind = "auth" | "url" | "unknown";
 
@@ -31,7 +39,11 @@ interface TestResult {
 }
 
 function SkillForm({ onDone }: { onDone: (name: string) => void }) {
-  async function handleSubmit(values: { name: string; description: string; instructions: string }) {
+  async function handleSubmit(values: {
+    name: string;
+    description: string;
+    instructions: string;
+  }) {
     const name = values.name.trim().toLowerCase().replace(/\s+/g, "-");
     const description = values.description.trim();
     const instructions = values.instructions.trim();
@@ -84,15 +96,13 @@ function SkillForm({ onDone }: { onDone: (name: string) => void }) {
 }
 
 export default function AddCapability() {
-  const [capabilityType, setCapabilityType] = useState<CapabilityType>("api");
+  const [, setCapabilityType] = useState<CapabilityType>("api");
   const [step, setStep] = useState<Step>("select-type");
   const [scaffoldLog, setScaffoldLog] = useState<string[]>([]);
   const [config, setConfig] = useState<SourceConfig | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSkillName, setSavedSkillName] = useState<string>("");
-
-  const { push } = useNavigation();
 
   function log(line: string) {
     setScaffoldLog((prev) => [...prev.slice(-200), line]);
@@ -112,13 +122,23 @@ export default function AddCapability() {
     setStep("scaffolding");
     setScaffoldLog([]);
 
-    const { anthropicApiKey } = getPreferenceValues<{ anthropicApiKey: string }>();
-    const result = await scaffoldSource(values.description, anthropicApiKey, log);
+    const { anthropicApiKey } = getPreferenceValues<{
+      anthropicApiKey: string;
+    }>();
+    const result = await scaffoldSource(
+      values.description,
+      anthropicApiKey,
+      log,
+    );
 
     if (!result.success || !result.config) {
       setError(result.error ?? "Scaffolding failed");
       setStep("describe");
-      await showToast({ style: Toast.Style.Failure, title: "Scaffolding failed", message: result.error });
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Scaffolding failed",
+        message: result.error,
+      });
       return;
     }
 
@@ -140,15 +160,11 @@ export default function AddCapability() {
     setStep("testing");
     log("Testing connection...");
 
-    const probePaths = ["/documents", "/folders", "/items", "/"];
-    let result = await callApi(cfg, credential, { path: probePaths[0], method: "GET" });
-    let probed = probePaths[0];
-
-    for (let i = 1; i < probePaths.length; i++) {
-      if (!result.error) break;
-      result = await callApi(cfg, credential, { path: probePaths[i], method: "GET" });
-      probed = probePaths[i];
-    }
+    const probed = "/";
+    const result = await callApi(cfg, credential, {
+      path: probed,
+      method: "GET",
+    });
 
     let tr: TestResult;
 
@@ -248,7 +264,10 @@ export default function AddCapability() {
       <Form
         actions={
           <ActionPanel>
-            <Action.SubmitForm title="Add Capability" onSubmit={handleDescriptionSubmit} />
+            <Action.SubmitForm
+              title="Add Capability"
+              onSubmit={handleDescriptionSubmit}
+            />
           </ActionPanel>
         }
       >
@@ -267,11 +286,13 @@ export default function AddCapability() {
   }
 
   if (step === "scaffolding" || step === "testing") {
-    const log = scaffoldLog.join("\n") || "Starting...";
+    const logOutput = scaffoldLog.join("\n") || "Starting...";
     return (
       <Detail
-        markdown={`# ${step === "testing" ? "Testing connection" : "Scaffolding"}\n\n\`\`\`\n${log}\n\`\`\``}
-        navigationTitle={step === "testing" ? "Testing..." : "Adding Capability..."}
+        markdown={`# ${step === "testing" ? "Testing connection" : "Scaffolding"}\n\n\`\`\`\n${logOutput}\n\`\`\``}
+        navigationTitle={
+          step === "testing" ? "Testing..." : "Adding Capability..."
+        }
       />
     );
   }
@@ -298,7 +319,10 @@ export default function AddCapability() {
       >
         <Form.Description
           title="Connection failed"
-          text={testResult?.message ?? "Could not reach the API. Check the base URL below."}
+          text={
+            testResult?.message ??
+            "Could not reach the API. Check the base URL below."
+          }
         />
         <Form.TextField
           id="baseUrl"
@@ -337,7 +361,7 @@ export default function AddCapability() {
           <ActionPanel>
             {isAuthFail && (
               <Action
-                title="Re-enter Credentials"
+                title="Re-Enter Credentials"
                 onAction={() => setStep("authenticate")}
               />
             )}
@@ -350,7 +374,9 @@ export default function AddCapability() {
             <Action
               title="Done"
               onAction={async () => {
-                await showHUD(`${config.name} ready — ask Raycast AI to use it`);
+                await showHUD(
+                  `${config.name} ready — ask Raycast AI to use it`,
+                );
                 await popToRoot();
               }}
             />
