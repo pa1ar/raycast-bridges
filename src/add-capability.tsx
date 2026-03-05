@@ -13,11 +13,13 @@ import {
 import { useState } from "react";
 import { callApi } from "./lib/api-call";
 import { scaffoldSource } from "./lib/scaffold";
+import { writeSkillMd } from "./lib/skills";
 import { readCredential, readSourceConfig, writeSourceConfig } from "./lib/sources";
 import type { SourceConfig } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 
-type Step = "describe" | "scaffolding" | "authenticate" | "testing" | "fix-url" | "done";
+type CapabilityType = "api" | "skill";
+type Step = "select-type" | "describe" | "scaffolding" | "authenticate" | "testing" | "fix-url" | "done" | "skill-form" | "skill-done";
 
 type TestFailureKind = "auth" | "url" | "unknown";
 
@@ -28,17 +30,82 @@ interface TestResult {
   message: string;
 }
 
+function SkillForm({ onDone }: { onDone: (name: string) => void }) {
+  async function handleSubmit(values: { name: string; description: string; instructions: string }) {
+    const name = values.name.trim().toLowerCase().replace(/\s+/g, "-");
+    const description = values.description.trim();
+    const instructions = values.instructions.trim();
+
+    const content = [
+      "---",
+      `name: ${name}`,
+      `description: "${description}"`,
+      "---",
+      "",
+      `# ${name}`,
+      "",
+      instructions,
+    ].join("\n");
+
+    writeSkillMd(name, content);
+    await showToast({ style: Toast.Style.Success, title: "Skill saved" });
+    onDone(name);
+  }
+
+  return (
+    <Form
+      navigationTitle="Add Skill"
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm title="Save Skill" onSubmit={handleSubmit} />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id="name"
+        title="Name"
+        placeholder="daily-review"
+        info="Identifier used to reference this skill (e.g. daily-review)"
+        autoFocus
+      />
+      <Form.TextField
+        id="description"
+        title="Description"
+        placeholder="Review today's notes and tasks"
+        info="One-liner shown in list-capabilities output"
+      />
+      <Form.TextArea
+        id="instructions"
+        title="Instructions"
+        placeholder="Step-by-step instructions for the AI to follow..."
+      />
+    </Form>
+  );
+}
+
 export default function AddCapability() {
-  const [step, setStep] = useState<Step>("describe");
+  const [capabilityType, setCapabilityType] = useState<CapabilityType>("api");
+  const [step, setStep] = useState<Step>("select-type");
   const [scaffoldLog, setScaffoldLog] = useState<string[]>([]);
   const [config, setConfig] = useState<SourceConfig | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedSkillName, setSavedSkillName] = useState<string>("");
 
   const { push } = useNavigation();
 
   function log(line: string) {
     setScaffoldLog((prev) => [...prev.slice(-200), line]);
+  }
+
+  async function handleTypeSubmit(values: { type: string }) {
+    const type = values.type as CapabilityType;
+    setCapabilityType(type);
+    if (type === "skill") {
+      setStep("skill-form");
+    } else {
+      setStep("describe");
+    }
   }
 
   async function handleDescriptionSubmit(values: { description: string }) {
@@ -73,14 +140,12 @@ export default function AddCapability() {
     setStep("testing");
     log("Testing connection...");
 
-    // probe several paths — stop at the first server response (any HTTP status)
-    // a network error means the URL is wrong; any HTTP response means we're reaching the server
     const probePaths = ["/documents", "/folders", "/items", "/"];
     let result = await callApi(cfg, credential, { path: probePaths[0], method: "GET" });
     let probed = probePaths[0];
 
     for (let i = 1; i < probePaths.length; i++) {
-      if (!result.error) break; // got a server response — done
+      if (!result.error) break;
       result = await callApi(cfg, credential, { path: probePaths[i], method: "GET" });
       probed = probePaths[i];
     }
@@ -102,7 +167,6 @@ export default function AddCapability() {
         message: `Authentication failed (HTTP ${result.status}) — credentials rejected`,
       };
     } else {
-      // any other HTTP status (200, 404, 405…) = server is up and responding
       tr = {
         ok: true,
         status: result.status,
@@ -125,6 +189,58 @@ export default function AddCapability() {
     setConfig(updated);
     const credential = readCredential(updated.slug) ?? "";
     await runTest(updated, credential);
+  }
+
+  if (step === "select-type") {
+    return (
+      <Form
+        navigationTitle="Add Capability"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm title="Continue" onSubmit={handleTypeSubmit} />
+          </ActionPanel>
+        }
+      >
+        <Form.Dropdown id="type" title="Type" defaultValue="api">
+          <Form.Dropdown.Item value="api" title="API Connection" />
+          <Form.Dropdown.Item value="skill" title="Skill" />
+        </Form.Dropdown>
+      </Form>
+    );
+  }
+
+  if (step === "skill-form") {
+    return (
+      <SkillForm
+        onDone={(name) => {
+          setSavedSkillName(name);
+          setStep("skill-done");
+        }}
+      />
+    );
+  }
+
+  if (step === "skill-done") {
+    return (
+      <Detail
+        markdown={[
+          `# Skill saved: ${savedSkillName}`,
+          "",
+          "Ask Raycast AI to use this skill — it will appear in `list-capabilities` output.",
+        ].join("\n")}
+        actions={
+          <ActionPanel>
+            <Action
+              title="Done"
+              onAction={async () => {
+                await showHUD(`Skill '${savedSkillName}' ready`);
+                await popToRoot();
+              }}
+            />
+          </ActionPanel>
+        }
+      />
+    );
   }
 
   if (step === "describe") {

@@ -13,10 +13,11 @@ import {
 } from "@raycast/api";
 import { useState } from "react";
 import { deleteSource, loadAllSources, readSourceConfig, writeSourceConfig } from "./lib/sources";
-import type { AuthType, LoadedSource, SourceConfig } from "./lib/types";
+import { deleteSkill, loadAllSkills, writeSkillMd } from "./lib/skills";
+import type { AuthType, LoadedSource, SkillInfo, SourceConfig } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 
-function EditForm({ config, onDone }: { config: SourceConfig; onDone: () => void }) {
+function EditSourceForm({ config, onDone }: { config: SourceConfig; onDone: () => void }) {
   async function handleSubmit(values: {
     name: string;
     baseUrl: string;
@@ -73,15 +74,65 @@ function EditForm({ config, onDone }: { config: SourceConfig; onDone: () => void
   );
 }
 
+function EditSkillForm({ skill, onDone }: { skill: SkillInfo; onDone: () => void }) {
+  // extract body (everything after the closing ---)
+  const bodyMatch = skill.content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
+  const defaultInstructions = bodyMatch?.[1]?.trim() ?? skill.content;
+
+  async function handleSubmit(values: { description: string; instructions: string }) {
+    const description = values.description.trim();
+    const instructions = values.instructions.trim();
+
+    const content = [
+      "---",
+      `name: ${skill.name}`,
+      `description: "${description}"`,
+      "---",
+      "",
+      `# ${skill.name}`,
+      "",
+      instructions,
+    ].join("\n");
+
+    writeSkillMd(skill.name, content);
+    await showToast({ style: Toast.Style.Success, title: "Saved" });
+    onDone();
+  }
+
+  return (
+    <Form
+      navigationTitle={`Edit skill: ${skill.name}`}
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm title="Save" onSubmit={handleSubmit} />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id="description"
+        title="Description"
+        defaultValue={skill.description}
+      />
+      <Form.TextArea
+        id="instructions"
+        title="Instructions"
+        defaultValue={defaultInstructions}
+      />
+    </Form>
+  );
+}
+
 export default function ManageCapabilities() {
   const [sources, setSources] = useState<LoadedSource[]>(() => loadAllSources());
+  const [skills, setSkills] = useState<SkillInfo[]>(() => loadAllSkills());
   const { push } = useNavigation();
 
   function refresh() {
     setSources(loadAllSources());
+    setSkills(loadAllSkills());
   }
 
-  async function handleDelete(slug: string, name: string) {
+  async function handleDeleteSource(slug: string, name: string) {
     const confirmed = await confirmAlert({
       title: `Remove ${name}?`,
       message: "This will delete the capability and its credentials.",
@@ -90,6 +141,18 @@ export default function ManageCapabilities() {
     if (!confirmed) return;
     deleteSource(slug);
     await showToast({ style: Toast.Style.Success, title: `${name} removed` });
+    refresh();
+  }
+
+  async function handleDeleteSkill(name: string) {
+    const confirmed = await confirmAlert({
+      title: `Remove skill '${name}'?`,
+      message: "This will permanently delete the skill.",
+      primaryAction: { title: "Remove", style: Alert.ActionStyle.Destructive },
+    });
+    if (!confirmed) return;
+    deleteSkill(name);
+    await showToast({ style: Toast.Style.Success, title: `Skill '${name}' removed` });
     refresh();
   }
 
@@ -102,13 +165,13 @@ export default function ManageCapabilities() {
     refresh();
   }
 
-  if (sources.length === 0) {
+  if (sources.length === 0 && skills.length === 0) {
     return (
       <List>
         <List.EmptyView
           icon={Icon.Plus}
           title="No capabilities installed"
-          description="Run 'Add Capability' to add your first API connection."
+          description="Run 'Add Capability' to add your first API connection or skill."
         />
       </List>
     );
@@ -116,46 +179,78 @@ export default function ManageCapabilities() {
 
   return (
     <List>
-      {sources.map((source) => (
-        <List.Item
-          key={source.config.slug}
-          icon={source.config.enabled ? Icon.Circle : Icon.CircleDisabled}
-          title={source.config.name}
-          subtitle={source.config.baseUrl}
-          accessories={[
-            source.isAuthenticated
-              ? { tag: { value: "authenticated", color: Color.Green } }
-              : { tag: { value: "no credentials", color: Color.Orange } },
-          ]}
-          actions={
-            <ActionPanel>
-              <Action
-                icon={Icon.Pencil}
-                title="Edit"
-                onAction={() => push(<EditForm config={source.config} onDone={refresh} />)}
-              />
-              <Action
-                icon={Icon.Key}
-                title="Set Credentials"
-                onAction={() =>
-                  push(<CredentialForm config={source.config} onDone={refresh} onCancel={refresh} />)
-                }
-              />
-              <Action
-                icon={source.config.enabled ? Icon.CircleDisabled : Icon.Circle}
-                title={source.config.enabled ? "Disable" : "Enable"}
-                onAction={() => handleToggle(source)}
-              />
-              <Action
-                icon={Icon.Trash}
-                title="Remove"
-                style={Action.Style.Destructive}
-                onAction={() => handleDelete(source.config.slug, source.config.name)}
-              />
-            </ActionPanel>
-          }
-        />
-      ))}
+      {sources.length > 0 && (
+        <List.Section title="API Sources">
+          {sources.map((source) => (
+            <List.Item
+              key={source.config.slug}
+              icon={source.config.enabled ? Icon.Circle : Icon.CircleDisabled}
+              title={source.config.name}
+              subtitle={source.config.baseUrl}
+              accessories={[
+                source.isAuthenticated
+                  ? { tag: { value: "authenticated", color: Color.Green } }
+                  : { tag: { value: "no credentials", color: Color.Orange } },
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action
+                    icon={Icon.Pencil}
+                    title="Edit"
+                    onAction={() => push(<EditSourceForm config={source.config} onDone={refresh} />)}
+                  />
+                  <Action
+                    icon={Icon.Key}
+                    title="Set Credentials"
+                    onAction={() =>
+                      push(<CredentialForm config={source.config} onDone={refresh} onCancel={refresh} />)
+                    }
+                  />
+                  <Action
+                    icon={source.config.enabled ? Icon.CircleDisabled : Icon.Circle}
+                    title={source.config.enabled ? "Disable" : "Enable"}
+                    onAction={() => handleToggle(source)}
+                  />
+                  <Action
+                    icon={Icon.Trash}
+                    title="Remove"
+                    style={Action.Style.Destructive}
+                    onAction={() => handleDeleteSource(source.config.slug, source.config.name)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+
+      {skills.length > 0 && (
+        <List.Section title="Skills">
+          {skills.map((skill) => (
+            <List.Item
+              key={skill.name}
+              icon={Icon.Document}
+              title={skill.name}
+              subtitle={skill.description}
+              actions={
+                <ActionPanel>
+                  <Action
+                    icon={Icon.Pencil}
+                    title="Edit"
+                    onAction={() => push(<EditSkillForm skill={skill} onDone={refresh} />)}
+                  />
+                  <Action
+                    icon={Icon.Trash}
+                    title="Remove"
+                    style={Action.Style.Destructive}
+                    onAction={() => handleDeleteSkill(skill.name)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
     </List>
   );
 }

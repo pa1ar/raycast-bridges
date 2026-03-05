@@ -1,6 +1,7 @@
 import { Tool } from "@raycast/api";
 import { callApi } from "../lib/api-call";
 import { readCredential, readSourceConfig } from "../lib/sources";
+import { listSkillNames } from "../lib/skills";
 
 interface Input {
   /** slug of the capability to call, e.g. "craft-api" */
@@ -14,6 +15,12 @@ interface Input {
 }
 
 export default async function callCapability(input: Input): Promise<Tool.Output> {
+  if (listSkillNames().includes(input.source)) {
+    return {
+      text: `'${input.source}' is a skill, not an API source. Read its instructions via get-capability-guide and follow them directly.`,
+    };
+  }
+
   const config = readSourceConfig(input.source);
   if (!config) {
     return { text: `Capability '${input.source}' not found. Use list-capabilities to see installed capabilities.` };

@@ -25,3 +25,9 @@ export interface LoadedSource {
   guide: string;
   isAuthenticated: boolean;
 }
+
+export interface SkillInfo {
+  name: string;
+  description: string;
+  content: string;
+}
