@@ -29,9 +29,9 @@
     {
       "name": "anthropicApiKey",
       "title": "Anthropic API Key",
-      "description": "Your Anthropic API key for scaffolding new capabilities",
+      "description": "Anthropic API key for scaffolding (optional if signed in with Claude OAuth)",
       "type": "password",
-      "required": true
+      "required": false
     }
   ],
   "tools": [

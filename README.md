@@ -19,8 +19,10 @@ Inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-
 ## Prerequisites
 
 - [Raycast](https://raycast.com) with AI enabled
-- An [Anthropic API key](https://console.anthropic.com/) (for scaffolding new capabilities)
 - [Claude CLI](https://claude.ai/download) installed (used by the scaffolding agent)
+- **Auth (one of):**
+  - A Claude account (Max or Pro subscription) — sign in via OAuth when prompted
+  - An [Anthropic API key](https://console.anthropic.com/) — set in extension preferences
 
 ## Setup
 
@@ -30,8 +32,8 @@ Inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-
    npm install
    npm run dev
    ```
-2. In Raycast, open **Bridges > Add Capability** preferences and add your Anthropic API key.
-3. Run **Add Capability** and describe any REST API.
+2. Run **Add Capability** and describe any REST API. If no API key is configured, you'll be prompted to sign in with your Claude account.
+3. Optionally, set an Anthropic API key in **Bridges** extension preferences as a fallback.
 
 ## State
 

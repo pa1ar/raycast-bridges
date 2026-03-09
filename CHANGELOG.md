@@ -1,8 +1,16 @@
 # Changelog
 
-## 1.0.0 - 2026-03-05
+## [Claude OAuth Login] - 2026-03-09
 
-- Initial release
+- Sign in with Claude account instead of requiring a separate Anthropic API key
+- OAuth flow with PKCE: browser auth -> paste code -> tokens stored locally
+- Auto-refresh expired tokens silently
+- API key preference now optional (OAuth takes priority)
+- Sign out action in Manage Capabilities
+- Cleaner connection test message (no more confusing HTTP 404 display)
+
+## [Initial Release] - 2026-03-05
+
 - Add Capability: AI-powered API scaffolding wizard
 - Manage Capabilities: edit, toggle, remove sources and skills
 - Three AI tools: list-capabilities, get-capability-guide, call-capability

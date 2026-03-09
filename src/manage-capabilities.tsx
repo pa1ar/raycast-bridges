@@ -11,7 +11,8 @@ import {
   showToast,
   useNavigation,
 } from "@raycast/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { clearClaudeTokens, loadClaudeTokens } from "./lib/claude-auth-store";
 import {
   deleteSource,
   loadAllSources,
@@ -180,7 +181,12 @@ export default function ManageCapabilities() {
     loadAllSources(false),
   );
   const [skills, setSkills] = useState<SkillInfo[]>(() => loadAllSkills());
+  const [hasOAuth, setHasOAuth] = useState(false);
   const { push } = useNavigation();
+
+  useEffect(() => {
+    loadClaudeTokens().then((t) => setHasOAuth(t !== null));
+  }, []);
 
   function refresh() {
     setSources(loadAllSources(false));
@@ -221,18 +227,6 @@ export default function ManageCapabilities() {
     config.updatedAt = Date.now();
     writeSourceConfig(source.config.slug, config);
     refresh();
-  }
-
-  if (sources.length === 0 && skills.length === 0) {
-    return (
-      <List>
-        <List.EmptyView
-          icon={Icon.Plus}
-          title="No capabilities installed"
-          description="Run 'Add Capability' to add your first API connection or skill."
-        />
-      </List>
-    );
   }
 
   return (
@@ -328,6 +322,36 @@ export default function ManageCapabilities() {
           ))}
         </List.Section>
       )}
+
+      <List.Section title="Authentication">
+        <List.Item
+          icon={hasOAuth ? Icon.PersonCircle : Icon.Person}
+          title="Claude OAuth"
+          subtitle={hasOAuth ? "Signed in" : "Not signed in"}
+          accessories={
+            hasOAuth ? [{ tag: { value: "active", color: Color.Green } }] : []
+          }
+          actions={
+            hasOAuth ? (
+              <ActionPanel>
+                <Action
+                  icon={Icon.XMarkCircle}
+                  title="Sign out of Claude"
+                  style={Action.Style.Destructive}
+                  onAction={async () => {
+                    await clearClaudeTokens();
+                    setHasOAuth(false);
+                    await showToast({
+                      style: Toast.Style.Success,
+                      title: "Signed out of Claude",
+                    });
+                  }}
+                />
+              </ActionPanel>
+            ) : undefined
+          }
+        />
+      </List.Section>
     </List>
   );
 }

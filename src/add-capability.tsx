@@ -5,12 +5,15 @@ import {
   Form,
   Toast,
   getPreferenceValues,
+  open,
   popToRoot,
   showHUD,
   showToast,
 } from "@raycast/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { callApi } from "./lib/api-call";
+import { getValidToken, saveClaudeTokens } from "./lib/claude-auth-store";
+import { exchangeClaudeCode, startClaudeOAuth } from "./lib/claude-oauth";
 import { scaffoldSource } from "./lib/scaffold";
 import { writeSkillMd } from "./lib/skills";
 import { readCredential, writeSourceConfig } from "./lib/sources";
@@ -21,6 +24,8 @@ type CapabilityType = "api" | "skill";
 type Step =
   | "select-type"
   | "describe"
+  | "oauth-login"
+  | "oauth-code"
   | "scaffolding"
   | "authenticate"
   | "testing"
@@ -103,6 +108,15 @@ export default function AddCapability() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSkillName, setSavedSkillName] = useState<string>("");
+  const [pendingDescription, setPendingDescription] = useState<string>("");
+  const [oauthToken, setOauthToken] = useState<string | null>(null);
+
+  // check for existing OAuth token on mount
+  useEffect(() => {
+    getValidToken().then((token) => {
+      if (token) setOauthToken(token);
+    });
+  }, []);
 
   function log(line: string) {
     setScaffoldLog((prev) => [...prev.slice(-200), line]);
@@ -118,18 +132,33 @@ export default function AddCapability() {
     }
   }
 
+  function getAuth(): { apiKey?: string; oauthToken?: string } | null {
+    // priority: OAuth token > API key preference
+    if (oauthToken) return { oauthToken };
+    const prefs = getPreferenceValues<{ anthropicApiKey?: string }>();
+    if (prefs.anthropicApiKey) return { apiKey: prefs.anthropicApiKey };
+    return null;
+  }
+
   async function handleDescriptionSubmit(values: { description: string }) {
+    const auth = getAuth();
+    if (!auth) {
+      // no auth available — start OAuth flow
+      setPendingDescription(values.description);
+      setStep("oauth-login");
+      return;
+    }
+    await runScaffold(values.description, auth);
+  }
+
+  async function runScaffold(
+    description: string,
+    auth: { apiKey?: string; oauthToken?: string },
+  ) {
     setStep("scaffolding");
     setScaffoldLog([]);
 
-    const { anthropicApiKey } = getPreferenceValues<{
-      anthropicApiKey: string;
-    }>();
-    const result = await scaffoldSource(
-      values.description,
-      anthropicApiKey,
-      log,
-    );
+    const result = await scaffoldSource(description, auth, log);
 
     if (!result.success || !result.config) {
       setError(result.error ?? "Scaffolding failed");
@@ -186,7 +215,7 @@ export default function AddCapability() {
       tr = {
         ok: true,
         status: result.status,
-        message: `Server reachable — ${cfg.baseUrl}${probed} returned HTTP ${result.status}`,
+        message: `Connected to ${cfg.baseUrl}`,
       };
     }
 
@@ -256,6 +285,86 @@ export default function AddCapability() {
           </ActionPanel>
         }
       />
+    );
+  }
+
+  if (step === "oauth-login") {
+    return (
+      <Detail
+        navigationTitle="Sign in with Claude"
+        markdown={[
+          "# Sign in with Claude",
+          "",
+          "No API key configured. Sign in with your Claude account to scaffold capabilities.",
+          "",
+          "1. Click **Sign in with Claude** below",
+          "2. Authenticate in your browser",
+          "3. Copy the authorization code from the callback page",
+          "4. Paste it in the next step",
+        ].join("\n")}
+        actions={
+          <ActionPanel>
+            <Action
+              title="Sign in with Claude"
+              onAction={async () => {
+                const authUrl = startClaudeOAuth();
+                await open(authUrl);
+                setStep("oauth-code");
+              }}
+            />
+          </ActionPanel>
+        }
+      />
+    );
+  }
+
+  if (step === "oauth-code") {
+    return (
+      <Form
+        navigationTitle="Paste Authorization Code"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Submit Code"
+              onSubmit={async (values: { code: string }) => {
+                const code = values.code.trim();
+                if (!code) return;
+                try {
+                  await showToast({
+                    style: Toast.Style.Animated,
+                    title: "Exchanging code...",
+                  });
+                  const tokens = await exchangeClaudeCode(code);
+                  await saveClaudeTokens(tokens);
+                  setOauthToken(tokens.accessToken);
+                  await showToast({
+                    style: Toast.Style.Success,
+                    title: "Signed in",
+                  });
+                  // resume scaffolding with the pending description
+                  await runScaffold(pendingDescription, {
+                    oauthToken: tokens.accessToken,
+                  });
+                } catch (err) {
+                  await showToast({
+                    style: Toast.Style.Failure,
+                    title: "OAuth failed",
+                    message: err instanceof Error ? err.message : String(err),
+                  });
+                  setStep("oauth-login");
+                }
+              }}
+            />
+          </ActionPanel>
+        }
+      >
+        <Form.TextField
+          id="code"
+          title="Authorization Code"
+          placeholder="Paste the code from your browser"
+          autoFocus
+        />
+      </Form>
     );
   }
 

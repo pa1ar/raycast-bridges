@@ -26,7 +26,7 @@ Key options: `permissionMode: bypassPermissions`, `allowDangerouslySkipPermissio
 
 The agent searches the web for real API docs, fetches OpenAPI specs, then writes config.json + guide.md.
 
-**Auth:** Anthropic API key stored in Raycast extension preferences (password field). Passed via `env.ANTHROPIC_API_KEY` to the agent subprocess.
+**Auth:** OAuth token (via Claude login) or Anthropic API key (preferences). OAuth takes priority. Token passed as `CLAUDE_CODE_OAUTH_TOKEN`; API key as `ANTHROPIC_API_KEY`. OAuth tokens stored in Raycast LocalStorage, auto-refreshed on expiry.
 
 **Env vars stripped from subprocess:** `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_ENTRYPOINT` — required to allow nested claude invocation.
 
@@ -36,3 +36,14 @@ The agent searches the web for real API docs, fetches OpenAPI specs, then writes
 - Raycast MCP config lives in encrypted SQLite — can't write to it programmatically; tools are registered via `package.json` `"tools"` array instead
 - Guide must lead with workflow, not endpoint list — AI ignores generic docs but follows explicit step-by-step patterns
 - `defaultHeaders` in config.json is injected into every request (e.g. `Accept: text/markdown` for Craft)
+
+## Before Every Commit
+
+1. Update `CHANGELOG.md` if the change is user-facing. Format: `## [Title] - YYYY-MM-DD` with `-` bullet points, newest first.
+2. `npm run build && npm run lint && npm run test` must all pass.
+
+## Releases & Updates
+
+- **Versioning:** handled by Raycast on publish (`npm run publish`). Don't manually bump versions.
+- **Screenshots:** store in `media/` folder, 2000x1250px PNG (16:10), 3-6 images. Required before first Store submission.
+- **Publishing:** `npm run publish` opens a PR to `raycast/extensions`. Raycast team reviews and merges.

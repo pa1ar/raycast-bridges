@@ -120,7 +120,7 @@ export interface ScaffoldResult {
 
 export async function scaffoldSource(
   description: string,
-  apiKey: string,
+  auth: { apiKey?: string; oauthToken?: string },
   onOutput: (line: string) => void,
 ): Promise<ScaffoldResult> {
   appendLog(`starting scaffold: ${description.slice(0, 100)}`);
@@ -151,7 +151,9 @@ export async function scaffoldSource(
         cwd: workDir,
         env: {
           ...process.env,
-          ANTHROPIC_API_KEY: apiKey,
+          ...(auth.oauthToken
+            ? { CLAUDE_CODE_OAUTH_TOKEN: auth.oauthToken }
+            : { ANTHROPIC_API_KEY: auth.apiKey }),
           // strip vars that block nested claude sessions
           CLAUDECODE: undefined,
           CLAUDE_CODE_SESSION_ID: undefined,
