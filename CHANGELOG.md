@@ -20,4 +20,4 @@
 
 - Add Capability: AI-powered API scaffolding wizard
 - Manage Capabilities: edit, toggle, remove sources and skills
-- Three AI tools: list-capabilities, get-capability-guide, call-capability
+- AI tools: search-capabilities, list-capabilities, get-capability-guide, call-capability
