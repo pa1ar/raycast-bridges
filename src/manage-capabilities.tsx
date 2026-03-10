@@ -8,11 +8,18 @@ import {
   List,
   Toast,
   confirmAlert,
+  getPreferenceValues,
+  open,
   showToast,
   useNavigation,
 } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { clearClaudeTokens, loadClaudeTokens } from "./lib/claude-auth-store";
+import {
+  clearClaudeTokens,
+  loadClaudeTokens,
+  saveClaudeTokens,
+} from "./lib/claude-auth-store";
+import { exchangeClaudeCode, startClaudeOAuth } from "./lib/claude-oauth";
 import {
   deleteSource,
   loadAllSources,
@@ -176,6 +183,51 @@ function EditSkillForm({
   );
 }
 
+function OAuthCodeForm({ onDone }: { onDone: () => void }) {
+  return (
+    <Form
+      navigationTitle="Paste Authorization Code"
+      actions={
+        <ActionPanel>
+          <Action.SubmitForm
+            title="Submit Code"
+            onSubmit={async (values: { code: string }) => {
+              const code = values.code.trim();
+              if (!code) return;
+              try {
+                await showToast({
+                  style: Toast.Style.Animated,
+                  title: "Exchanging code...",
+                });
+                const tokens = await exchangeClaudeCode(code);
+                await saveClaudeTokens(tokens);
+                await showToast({
+                  style: Toast.Style.Success,
+                  title: "Signed in with Claude",
+                });
+                onDone();
+              } catch (err) {
+                await showToast({
+                  style: Toast.Style.Failure,
+                  title: "OAuth failed",
+                  message: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }}
+          />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id="code"
+        title="Authorization Code"
+        placeholder="Paste the code from your browser"
+        autoFocus
+      />
+    </Form>
+  );
+}
+
 export default function ManageCapabilities() {
   const [sources, setSources] = useState<LoadedSource[]>(() =>
     loadAllSources(false),
@@ -184,9 +236,20 @@ export default function ManageCapabilities() {
   const [hasOAuth, setHasOAuth] = useState(false);
   const { push } = useNavigation();
 
+  const prefs = getPreferenceValues<{
+    scaffoldingAuth: string;
+    anthropicApiKey?: string;
+  }>();
+
   useEffect(() => {
     loadClaudeTokens().then((t) => setHasOAuth(t !== null));
   }, []);
+
+  function refreshAll() {
+    setSources(loadAllSources(false));
+    setSkills(loadAllSkills());
+    loadClaudeTokens().then((t) => setHasOAuth(t !== null));
+  }
 
   function refresh() {
     setSources(loadAllSources(false));
@@ -323,34 +386,66 @@ export default function ManageCapabilities() {
         </List.Section>
       )}
 
-      <List.Section title="Authentication">
-        <List.Item
-          icon={hasOAuth ? Icon.PersonCircle : Icon.Person}
-          title="Claude OAuth"
-          subtitle={hasOAuth ? "Signed in" : "Not signed in"}
-          accessories={
-            hasOAuth ? [{ tag: { value: "active", color: Color.Green } }] : []
-          }
-          actions={
-            hasOAuth ? (
+      <List.Section title="Scaffolding Auth">
+        {prefs.scaffoldingAuth === "oauth" ? (
+          <List.Item
+            icon={hasOAuth ? Icon.PersonCircle : Icon.Person}
+            title="Claude Subscription (OAuth)"
+            subtitle={hasOAuth ? "Signed in" : "Not signed in"}
+            accessories={
+              hasOAuth
+                ? [{ tag: { value: "active", color: Color.Green } }]
+                : [{ tag: { value: "sign in required", color: Color.Orange } }]
+            }
+            actions={
               <ActionPanel>
-                <Action
-                  icon={Icon.XMarkCircle}
-                  title="Sign out of Claude"
-                  style={Action.Style.Destructive}
-                  onAction={async () => {
-                    await clearClaudeTokens();
-                    setHasOAuth(false);
-                    await showToast({
-                      style: Toast.Style.Success,
-                      title: "Signed out of Claude",
-                    });
-                  }}
-                />
+                {hasOAuth ? (
+                  <Action
+                    icon={Icon.XMarkCircle}
+                    title="Sign Out Of Claude"
+                    style={Action.Style.Destructive}
+                    onAction={async () => {
+                      await clearClaudeTokens();
+                      setHasOAuth(false);
+                      await showToast({
+                        style: Toast.Style.Success,
+                        title: "Signed out of Claude",
+                      });
+                    }}
+                  />
+                ) : (
+                  <Action
+                    icon={Icon.PersonCircle}
+                    title="Sign In With Claude"
+                    onAction={async () => {
+                      const authUrl = startClaudeOAuth();
+                      await open(authUrl);
+                      push(<OAuthCodeForm onDone={refreshAll} />);
+                    }}
+                  />
+                )}
               </ActionPanel>
-            ) : undefined
-          }
-        />
+            }
+          />
+        ) : (
+          <List.Item
+            icon={Icon.Key}
+            title="Anthropic API Key"
+            subtitle={prefs.anthropicApiKey ? "Configured" : "Not set"}
+            accessories={
+              prefs.anthropicApiKey
+                ? [{ tag: { value: "active", color: Color.Green } }]
+                : [
+                    {
+                      tag: {
+                        value: "set in preferences",
+                        color: Color.Orange,
+                      },
+                    },
+                  ]
+            }
+          />
+        )}
       </List.Section>
     </List>
   );

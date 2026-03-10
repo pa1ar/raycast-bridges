@@ -27,9 +27,21 @@
   ],
   "preferences": [
     {
+      "name": "scaffoldingAuth",
+      "title": "Scaffolding Agent Auth",
+      "description": "How to authenticate the scaffolding agent that creates new capabilities",
+      "type": "dropdown",
+      "required": true,
+      "default": "oauth",
+      "data": [
+        { "title": "Claude Subscription (OAuth)", "value": "oauth" },
+        { "title": "Anthropic API Key", "value": "api-key" }
+      ]
+    },
+    {
       "name": "anthropicApiKey",
       "title": "Anthropic API Key",
-      "description": "Anthropic API key for scaffolding (optional if signed in with Claude OAuth)",
+      "description": "Only used when auth method is set to 'Anthropic API Key' above",
       "type": "password",
       "required": false
     }

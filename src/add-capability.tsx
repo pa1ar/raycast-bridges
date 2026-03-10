@@ -133,21 +133,41 @@ export default function AddCapability() {
   }
 
   function getAuth(): { apiKey?: string; oauthToken?: string } | null {
-    // priority: OAuth token > API key preference
+    const prefs = getPreferenceValues<{
+      scaffoldingAuth: string;
+      anthropicApiKey?: string;
+    }>();
+
+    if (prefs.scaffoldingAuth === "api-key") {
+      if (prefs.anthropicApiKey) return { apiKey: prefs.anthropicApiKey };
+      return null;
+    }
+
+    // oauth mode
     if (oauthToken) return { oauthToken };
-    const prefs = getPreferenceValues<{ anthropicApiKey?: string }>();
-    if (prefs.anthropicApiKey) return { apiKey: prefs.anthropicApiKey };
     return null;
   }
 
   async function handleDescriptionSubmit(values: { description: string }) {
+    const prefs = getPreferenceValues<{ scaffoldingAuth: string }>();
     const auth = getAuth();
-    if (!auth) {
-      // no auth available — start OAuth flow
+
+    if (!auth && prefs.scaffoldingAuth === "oauth") {
+      // need to sign in first
       setPendingDescription(values.description);
       setStep("oauth-login");
       return;
     }
+
+    if (!auth) {
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "No API key configured",
+        message: "Set your Anthropic API key in extension preferences",
+      });
+      return;
+    }
+
     await runScaffold(values.description, auth);
   }
 
@@ -295,7 +315,7 @@ export default function AddCapability() {
         markdown={[
           "# Sign in with Claude",
           "",
-          "No API key configured. Sign in with your Claude account to scaffold capabilities.",
+          "Sign in with your Claude account to scaffold capabilities.",
           "",
           "1. Click **Sign in with Claude** below",
           "2. Authenticate in your browser",
