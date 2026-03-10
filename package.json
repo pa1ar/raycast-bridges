@@ -48,14 +48,19 @@
   ],
   "tools": [
     {
+      "name": "search-capabilities",
+      "title": "Search Capabilities",
+      "description": "Search installed capabilities by keyword. Always call this first — it searches names, descriptions, and guides to find the right tool for the task. If few capabilities are installed, returns all of them automatically."
+    },
+    {
       "name": "list-capabilities",
       "title": "List Capabilities",
-      "description": "List installed capabilities (name + description only). Always call this first, then get-capability-guide before making API calls."
+      "description": "List ALL installed capabilities. Use only when search-capabilities returns no results or the user explicitly asks to browse everything."
     },
     {
       "name": "get-capability-guide",
       "title": "Get Capability Guide",
-      "description": "Load the full API documentation (endpoints, auth, examples) for a capability. Call this after list-capabilities and before calling the API."
+      "description": "Load the full API documentation (endpoints, auth, examples) for a capability. Call this once after identifying the right capability via search, then use call-capability."
     },
     {
       "name": "call-capability",

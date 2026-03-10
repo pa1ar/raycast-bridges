@@ -9,10 +9,11 @@
 
 ## Architecture
 
-**3-step Raycast AI tool flow:**
-1. `list-capabilities` — returns slug + one-liner per source
-2. `get-capability-guide` — returns full guide.md for a source (call once, stays in history)
-3. `call-capability` — makes the actual HTTP request with injected auth
+**Raycast AI tool flow (search-first):**
+1. `search-capabilities` — keyword search across names, descriptions, guides. Returns matching capabilities. If ≤5 total, returns all without searching.
+2. `list-capabilities` — fallback: lists everything. Used when search returns nothing or user wants to browse.
+3. `get-capability-guide` — returns full guide.md for a source (call once, stays in history)
+4. `call-capability` — makes the actual HTTP request with injected auth
 
 **State on disk:** `~/.bridges/sources/{slug}/`
 - `config.json` — slug, name, baseUrl, authType, defaultHeaders, enabled

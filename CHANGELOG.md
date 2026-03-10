@@ -1,5 +1,12 @@
 # Changelog
 
+## [Search-first tool discovery] - 2026-03-10
+
+- New search-capabilities tool: Raycast AI now searches for the right capability by keyword instead of listing everything
+- Searches across names, descriptions, URLs, and full guide content
+- When 5 or fewer capabilities are installed, returns all automatically (no search overhead)
+- list-capabilities demoted to fallback for browsing all capabilities
+
 ## [Claude OAuth Login] - 2026-03-09
 
 - Sign in with Claude account instead of requiring a separate Anthropic API key
