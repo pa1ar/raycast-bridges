@@ -34,8 +34,14 @@
       "required": true,
       "default": "oauth",
       "data": [
-        { "title": "Claude Subscription (OAuth)", "value": "oauth" },
-        { "title": "Anthropic API Key", "value": "api-key" }
+        {
+          "title": "Claude Subscription (OAuth)",
+          "value": "oauth"
+        },
+        {
+          "title": "Anthropic API Key",
+          "value": "api-key"
+        }
       ]
     },
     {
@@ -60,19 +66,21 @@
     {
       "name": "get-capability-guide",
       "title": "Get Capability Guide",
-      "description": "Load the full API documentation (endpoints, auth, examples) for a capability. Call this once after identifying the right capability via search, then use call-capability."
+      "description": "Load the full documentation for a capability. Call this once after identifying the right capability via search, then use call-capability with REST paths or MCP pseudo-paths."
     },
     {
       "name": "call-capability",
       "title": "Call Capability",
-      "description": "Make an authenticated API request to a capability. Always call get-capability-guide first to get endpoint documentation."
+      "description": "Call a capability. Supports authenticated REST APIs and MCP servers via pseudo-paths like /tools and /tools/<tool>/call. Always call get-capability-guide first."
     }
   ],
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.59",
     "@anthropic-ai/sdk": "^0.39.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@raycast/api": "^1.93.2",
-    "@raycast/utils": "^1.19.1"
+    "@raycast/utils": "^1.19.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.0.4",

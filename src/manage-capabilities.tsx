@@ -3,7 +3,6 @@ import {
   ActionPanel,
   Alert,
   Color,
-  Form,
   Icon,
   List,
   Toast,
@@ -14,224 +13,38 @@ import {
   useNavigation,
 } from "@raycast/api";
 import { useEffect, useState } from "react";
+import { clearClaudeTokens, loadClaudeTokens } from "./lib/claude-auth-store";
+import { startClaudeOAuth } from "./lib/claude-oauth";
 import {
-  clearClaudeTokens,
-  loadClaudeTokens,
-  saveClaudeTokens,
-} from "./lib/claude-auth-store";
-import { exchangeClaudeCode, startClaudeOAuth } from "./lib/claude-oauth";
-import {
+  deleteCredential,
   deleteSource,
   loadAllSources,
   readSourceConfig,
   writeSourceConfig,
 } from "./lib/sources";
-import { deleteSkill, loadAllSkills, writeSkillMd } from "./lib/skills";
-import type {
-  AuthType,
-  LoadedSource,
-  SkillInfo,
-  SourceConfig,
-} from "./lib/types";
+import {
+  deleteMcp,
+  deleteMcpCredential,
+  loadAllMcps,
+  readMcpConfig,
+  writeMcpConfig,
+  writeMcpCredential,
+} from "./lib/mcps";
+import { deleteSkill, loadAllSkills } from "./lib/skills";
+import type { LoadedMcp, LoadedSource, SkillInfo } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
-
-function EditSourceForm({
-  config,
-  onDone,
-}: {
-  config: SourceConfig;
-  onDone: () => void;
-}) {
-  async function handleSubmit(values: {
-    name: string;
-    baseUrl: string;
-    description: string;
-    authType: string;
-    apiKeyHeader: string;
-    enabled: string;
-  }) {
-    const updated: SourceConfig = {
-      ...config,
-      name: values.name.trim(),
-      baseUrl: values.baseUrl.trim().replace(/\/$/, ""),
-      description: values.description.trim(),
-      authType: values.authType as AuthType,
-      apiKeyHeader: values.apiKeyHeader.trim() || undefined,
-      enabled: values.enabled === "true",
-      updatedAt: Date.now(),
-    };
-    writeSourceConfig(config.slug, updated);
-    await showToast({ style: Toast.Style.Success, title: "Saved" });
-    onDone();
-  }
-
-  return (
-    <Form
-      navigationTitle={`Edit ${config.name}`}
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm title="Save" onSubmit={handleSubmit} />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="name"
-        title="Name"
-        placeholder="My API"
-        defaultValue={config.name}
-      />
-      <Form.TextField
-        id="baseUrl"
-        title="Base URL"
-        placeholder="https://api.example.com/v1"
-        defaultValue={config.baseUrl}
-      />
-      <Form.TextField
-        id="description"
-        title="Description"
-        placeholder="One-line description"
-        defaultValue={config.description ?? ""}
-      />
-      <Form.Dropdown
-        id="authType"
-        title="Auth Type"
-        defaultValue={config.authType}
-      >
-        <Form.Dropdown.Item value="bearer" title="Bearer Token" />
-        <Form.Dropdown.Item value="api-key" title="API Key (custom header)" />
-        <Form.Dropdown.Item
-          value="basic"
-          title="Basic Auth (username:password)"
-        />
-        <Form.Dropdown.Item value="none" title="None" />
-      </Form.Dropdown>
-      <Form.TextField
-        id="apiKeyHeader"
-        title="API Key Header"
-        placeholder="X-Api-Key"
-        defaultValue={config.apiKeyHeader ?? ""}
-        info="Only used when Auth Type is API Key"
-      />
-      <Form.Dropdown
-        id="enabled"
-        title="Enabled"
-        defaultValue={String(config.enabled)}
-      >
-        <Form.Dropdown.Item value="true" title="Enabled" />
-        <Form.Dropdown.Item value="false" title="Disabled" />
-      </Form.Dropdown>
-    </Form>
-  );
-}
-
-function EditSkillForm({
-  skill,
-  onDone,
-}: {
-  skill: SkillInfo;
-  onDone: () => void;
-}) {
-  // extract body (everything after the closing ---)
-  const bodyMatch = skill.content.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
-  const defaultInstructions = bodyMatch?.[1]?.trim() ?? skill.content;
-
-  async function handleSubmit(values: {
-    description: string;
-    instructions: string;
-  }) {
-    const description = values.description.trim();
-    const instructions = values.instructions.trim();
-
-    const content = [
-      "---",
-      `name: ${skill.name}`,
-      `description: "${description}"`,
-      "---",
-      "",
-      `# ${skill.name}`,
-      "",
-      instructions,
-    ].join("\n");
-
-    writeSkillMd(skill.name, content);
-    await showToast({ style: Toast.Style.Success, title: "Saved" });
-    onDone();
-  }
-
-  return (
-    <Form
-      navigationTitle={`Edit skill: ${skill.name}`}
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm title="Save" onSubmit={handleSubmit} />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="description"
-        title="Description"
-        placeholder="What this skill does"
-        defaultValue={skill.description}
-      />
-      <Form.TextArea
-        id="instructions"
-        title="Instructions"
-        placeholder="Step-by-step instructions for the AI..."
-        defaultValue={defaultInstructions}
-      />
-    </Form>
-  );
-}
-
-function OAuthCodeForm({ onDone }: { onDone: () => void }) {
-  return (
-    <Form
-      navigationTitle="Paste Authorization Code"
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm
-            title="Submit Code"
-            onSubmit={async (values: { code: string }) => {
-              const code = values.code.trim();
-              if (!code) return;
-              try {
-                await showToast({
-                  style: Toast.Style.Animated,
-                  title: "Exchanging code...",
-                });
-                const tokens = await exchangeClaudeCode(code);
-                await saveClaudeTokens(tokens);
-                await showToast({
-                  style: Toast.Style.Success,
-                  title: "Signed in with Claude",
-                });
-                onDone();
-              } catch (err) {
-                await showToast({
-                  style: Toast.Style.Failure,
-                  title: "OAuth failed",
-                  message: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }}
-          />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="code"
-        title="Authorization Code"
-        placeholder="Paste the code from your browser"
-        autoFocus
-      />
-    </Form>
-  );
-}
+import { EditSourceForm } from "./components/EditSourceForm";
+import { EditSkillForm } from "./components/EditSkillForm";
+import { EditMcpForm } from "./components/EditMcpForm";
+import { EditWithAiForm } from "./components/EditWithAiForm";
+import { OAuthCodeForm } from "./components/OAuthCodeForm";
+import { callMcp } from "./lib/mcp-client";
 
 export default function ManageCapabilities() {
   const [sources, setSources] = useState<LoadedSource[]>(() =>
     loadAllSources(false),
   );
+  const [mcps, setMcps] = useState<LoadedMcp[]>(() => loadAllMcps(false));
   const [skills, setSkills] = useState<SkillInfo[]>(() => loadAllSkills());
   const [hasOAuth, setHasOAuth] = useState(false);
   const { push } = useNavigation();
@@ -247,12 +60,14 @@ export default function ManageCapabilities() {
 
   function refreshAll() {
     setSources(loadAllSources(false));
+    setMcps(loadAllMcps(false));
     setSkills(loadAllSkills());
     loadClaudeTokens().then((t) => setHasOAuth(t !== null));
   }
 
   function refresh() {
     setSources(loadAllSources(false));
+    setMcps(loadAllMcps(false));
     setSkills(loadAllSkills());
   }
 
@@ -264,6 +79,18 @@ export default function ManageCapabilities() {
     });
     if (!confirmed) return;
     deleteSource(slug);
+    await showToast({ style: Toast.Style.Success, title: `${name} removed` });
+    refresh();
+  }
+
+  async function handleDeleteMcp(slug: string, name: string) {
+    const confirmed = await confirmAlert({
+      title: `Remove ${name}?`,
+      message: "This will delete the MCP server configuration.",
+      primaryAction: { title: "Remove", style: Alert.ActionStyle.Destructive },
+    });
+    if (!confirmed) return;
+    deleteMcp(slug);
     await showToast({ style: Toast.Style.Success, title: `${name} removed` });
     refresh();
   }
@@ -283,13 +110,80 @@ export default function ManageCapabilities() {
     refresh();
   }
 
-  async function handleToggle(source: LoadedSource) {
+  async function handleToggleSource(source: LoadedSource) {
     const config = readSourceConfig(source.config.slug);
     if (!config) return;
     config.enabled = !config.enabled;
     config.updatedAt = Date.now();
     writeSourceConfig(source.config.slug, config);
     refresh();
+  }
+
+  async function handleToggleMcp(mcp: LoadedMcp) {
+    const config = readMcpConfig(mcp.config.slug);
+    if (!config) return;
+    config.enabled = !config.enabled;
+    config.updatedAt = Date.now();
+    writeMcpConfig(mcp.config.slug, config);
+    refresh();
+  }
+
+  async function handleReconnectSource(slug: string, name: string) {
+    deleteCredential(slug);
+    await showToast({
+      style: Toast.Style.Success,
+      title: `Credentials cleared for ${name}`,
+    });
+    const config = readSourceConfig(slug);
+    if (config) {
+      push(
+        <CredentialForm config={config} onDone={refresh} onCancel={refresh} />,
+      );
+    } else {
+      refresh();
+    }
+  }
+
+  async function handleReconnectMcp(slug: string, name: string) {
+    deleteMcpCredential(slug);
+    await showToast({
+      style: Toast.Style.Success,
+      title: `Credentials cleared for ${name}`,
+    });
+    refresh();
+  }
+
+  async function handleAuthorizeMcp(mcp: LoadedMcp) {
+    const config = readMcpConfig(mcp.config.slug);
+    if (!config) return;
+
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: `Starting OAuth for ${config.name}`,
+      message: "Finish the browser flow if one opens",
+    });
+
+    try {
+      await callMcp(
+        config,
+        {
+          path: "/ping",
+          method: "GET",
+        },
+        {
+          timeoutMs: 180_000,
+        },
+      );
+      writeMcpCredential(config.slug, "oauth-connected");
+      toast.style = Toast.Style.Success;
+      toast.title = `${config.name} connected`;
+      toast.message = "MCP handshake succeeded";
+      refresh();
+    } catch (error) {
+      toast.style = Toast.Style.Failure;
+      toast.title = `OAuth failed for ${config.name}`;
+      toast.message = error instanceof Error ? error.message : String(error);
+    }
   }
 
   return (
@@ -335,11 +229,37 @@ export default function ManageCapabilities() {
                     }
                   />
                   <Action
+                    icon={Icon.Wand}
+                    title="Edit with AI"
+                    onAction={() =>
+                      push(
+                        <EditWithAiForm
+                          slug={source.config.slug}
+                          type="api"
+                          name={source.config.name}
+                          onDone={refresh}
+                        />,
+                      )
+                    }
+                  />
+                  {source.config.authType !== "none" && (
+                    <Action
+                      icon={Icon.ArrowClockwise}
+                      title="Reconnect"
+                      onAction={() =>
+                        handleReconnectSource(
+                          source.config.slug,
+                          source.config.name,
+                        )
+                      }
+                    />
+                  )}
+                  <Action
                     icon={
                       source.config.enabled ? Icon.CircleDisabled : Icon.Circle
                     }
                     title={source.config.enabled ? "Disable" : "Enable"}
-                    onAction={() => handleToggle(source)}
+                    onAction={() => handleToggleSource(source)}
                   />
                   <Action
                     icon={Icon.Trash}
@@ -347,6 +267,103 @@ export default function ManageCapabilities() {
                     style={Action.Style.Destructive}
                     onAction={() =>
                       handleDeleteSource(source.config.slug, source.config.name)
+                    }
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+
+      {mcps.length > 0 && (
+        <List.Section title="MCP Servers">
+          {mcps.map((mcp) => (
+            <List.Item
+              key={mcp.config.slug}
+              icon={mcp.config.enabled ? Icon.Terminal : Icon.CircleDisabled}
+              title={mcp.config.name}
+              subtitle={`${mcp.config.command}${mcp.config.args ? " " + mcp.config.args[0] : ""}`}
+              accessories={[
+                mcp.isAuthenticated
+                  ? { tag: { value: "ready", color: Color.Green } }
+                  : { tag: { value: "needs setup", color: Color.Orange } },
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action
+                    icon={Icon.Pencil}
+                    title="Edit"
+                    onAction={() =>
+                      push(<EditMcpForm config={mcp.config} onDone={refresh} />)
+                    }
+                  />
+                  {mcp.config.authType === "oauth" && (
+                    <Action
+                      icon={Icon.PersonCircle}
+                      title={
+                        mcp.isAuthenticated ? "Reconnect OAuth" : "Start OAuth"
+                      }
+                      onAction={() => handleAuthorizeMcp(mcp)}
+                    />
+                  )}
+                  {mcp.config.authType !== "none" &&
+                    mcp.config.authType !== "oauth" && (
+                      <Action
+                        icon={Icon.Key}
+                        title="Set Credentials"
+                        onAction={() =>
+                          push(
+                            <CredentialForm
+                              name={mcp.config.name}
+                              authType={mcp.config.authType}
+                              onDone={refresh}
+                              onCancel={refresh}
+                              writeCredentialFn={(value) =>
+                                writeMcpCredential(mcp.config.slug, value)
+                              }
+                            />,
+                          )
+                        }
+                      />
+                    )}
+                  <Action
+                    icon={Icon.Wand}
+                    title="Edit with AI"
+                    onAction={() =>
+                      push(
+                        <EditWithAiForm
+                          slug={mcp.config.slug}
+                          type="mcp"
+                          name={mcp.config.name}
+                          onDone={refresh}
+                        />,
+                      )
+                    }
+                  />
+                  {mcp.config.authType !== "none" &&
+                    mcp.config.authType !== "oauth" && (
+                      <Action
+                        icon={Icon.ArrowClockwise}
+                        title="Reconnect"
+                        onAction={() =>
+                          handleReconnectMcp(mcp.config.slug, mcp.config.name)
+                        }
+                      />
+                    )}
+                  <Action
+                    icon={
+                      mcp.config.enabled ? Icon.CircleDisabled : Icon.Circle
+                    }
+                    title={mcp.config.enabled ? "Disable" : "Enable"}
+                    onAction={() => handleToggleMcp(mcp)}
+                  />
+                  <Action
+                    icon={Icon.Trash}
+                    title="Remove"
+                    style={Action.Style.Destructive}
+                    onAction={() =>
+                      handleDeleteMcp(mcp.config.slug, mcp.config.name)
                     }
                   />
                 </ActionPanel>
@@ -371,6 +388,20 @@ export default function ManageCapabilities() {
                     title="Edit"
                     onAction={() =>
                       push(<EditSkillForm skill={skill} onDone={refresh} />)
+                    }
+                  />
+                  <Action
+                    icon={Icon.Wand}
+                    title="Edit with AI"
+                    onAction={() =>
+                      push(
+                        <EditWithAiForm
+                          slug={skill.name}
+                          type="skill"
+                          name={skill.name}
+                          onDone={refresh}
+                        />,
+                      )
                     }
                   />
                   <Action
@@ -402,7 +433,7 @@ export default function ManageCapabilities() {
                 {hasOAuth ? (
                   <Action
                     icon={Icon.XMarkCircle}
-                    title="Sign Out Of Claude"
+                    title="Sign out of Claude"
                     style={Action.Style.Destructive}
                     onAction={async () => {
                       await clearClaudeTokens();
@@ -416,7 +447,7 @@ export default function ManageCapabilities() {
                 ) : (
                   <Action
                     icon={Icon.PersonCircle}
-                    title="Sign In With Claude"
+                    title="Sign in with Claude"
                     onAction={async () => {
                       const authUrl = startClaudeOAuth();
                       await open(authUrl);

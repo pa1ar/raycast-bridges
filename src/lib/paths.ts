@@ -4,6 +4,7 @@ import { join } from "path";
 export const AGENTS_DIR = join(homedir(), ".bridges");
 export const SOURCES_DIR = join(AGENTS_DIR, "sources");
 export const SKILLS_DIR = join(AGENTS_DIR, "skills");
+export const MCPS_DIR = join(AGENTS_DIR, "mcps");
 
 export function sourceDir(slug: string) {
   return join(SOURCES_DIR, slug);
@@ -27,4 +28,20 @@ export function skillDir(name: string) {
 
 export function skillMdPath(name: string) {
   return join(skillDir(name), "SKILL.md");
+}
+
+export function mcpDir(slug: string) {
+  return join(MCPS_DIR, slug);
+}
+
+export function mcpConfigPath(slug: string) {
+  return join(mcpDir(slug), "config.json");
+}
+
+export function mcpGuidePath(slug: string) {
+  return join(mcpDir(slug), "guide.md");
+}
+
+export function mcpCredentialCachePath(slug: string) {
+  return join(mcpDir(slug), ".credential-cache.json");
 }

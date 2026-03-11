@@ -15,14 +15,21 @@ import { callApi } from "./lib/api-call";
 import { getValidToken, saveClaudeTokens } from "./lib/claude-auth-store";
 import { exchangeClaudeCode, startClaudeOAuth } from "./lib/claude-oauth";
 import { scaffoldSource } from "./lib/scaffold";
-import { writeSkillMd } from "./lib/skills";
+import { scaffoldSkill } from "./lib/scaffold-skill";
+import { scaffoldMcp } from "./lib/scaffold-mcp";
 import { readCredential, writeSourceConfig } from "./lib/sources";
-import type { SourceConfig } from "./lib/types";
+import type { McpConfig, SourceConfig } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
+import { ManualApiForm } from "./components/ManualApiForm";
+import { ManualMcpForm } from "./components/ManualMcpForm";
+import { SkillForm } from "./components/SkillForm";
+import { ScaffoldProgress } from "./components/ScaffoldProgress";
 
-type CapabilityType = "api" | "skill";
+type CapabilityType = "api" | "skill" | "mcp";
+type AddMethod = "ai" | "manual";
 type Step =
   | "select-type"
+  | "select-method"
   | "describe"
   | "oauth-login"
   | "oauth-code"
@@ -32,7 +39,12 @@ type Step =
   | "fix-url"
   | "done"
   | "skill-form"
-  | "skill-done";
+  | "skill-describe"
+  | "skill-done"
+  | "manual-api"
+  | "manual-mcp"
+  | "mcp-describe"
+  | "mcp-done";
 
 type TestFailureKind = "auth" | "url" | "unknown";
 
@@ -43,75 +55,18 @@ interface TestResult {
   message: string;
 }
 
-function SkillForm({ onDone }: { onDone: (name: string) => void }) {
-  async function handleSubmit(values: {
-    name: string;
-    description: string;
-    instructions: string;
-  }) {
-    const name = values.name.trim().toLowerCase().replace(/\s+/g, "-");
-    const description = values.description.trim();
-    const instructions = values.instructions.trim();
-
-    const content = [
-      "---",
-      `name: ${name}`,
-      `description: "${description}"`,
-      "---",
-      "",
-      `# ${name}`,
-      "",
-      instructions,
-    ].join("\n");
-
-    writeSkillMd(name, content);
-    await showToast({ style: Toast.Style.Success, title: "Skill saved" });
-    onDone(name);
-  }
-
-  return (
-    <Form
-      navigationTitle="Add Skill"
-      actions={
-        <ActionPanel>
-          <Action.SubmitForm title="Save Skill" onSubmit={handleSubmit} />
-        </ActionPanel>
-      }
-    >
-      <Form.TextField
-        id="name"
-        title="Name"
-        placeholder="daily-review"
-        info="Identifier used to reference this skill (e.g. daily-review)"
-        autoFocus
-      />
-      <Form.TextField
-        id="description"
-        title="Description"
-        placeholder="Review today's notes and tasks"
-        info="One-liner shown in list-capabilities output"
-      />
-      <Form.TextArea
-        id="instructions"
-        title="Instructions"
-        placeholder="Step-by-step instructions for the AI to follow..."
-      />
-    </Form>
-  );
-}
-
 export default function AddCapability() {
-  const [, setCapabilityType] = useState<CapabilityType>("api");
+  const [capabilityType, setCapabilityType] = useState<CapabilityType>("api");
   const [step, setStep] = useState<Step>("select-type");
   const [scaffoldLog, setScaffoldLog] = useState<string[]>([]);
   const [config, setConfig] = useState<SourceConfig | null>(null);
+  const [mcpConfig, setMcpConfig] = useState<McpConfig | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSkillName, setSavedSkillName] = useState<string>("");
   const [pendingDescription, setPendingDescription] = useState<string>("");
   const [oauthToken, setOauthToken] = useState<string | null>(null);
 
-  // check for existing OAuth token on mount
   useEffect(() => {
     getValidToken().then((token) => {
       if (token) setOauthToken(token);
@@ -120,16 +75,6 @@ export default function AddCapability() {
 
   function log(line: string) {
     setScaffoldLog((prev) => [...prev.slice(-200), line]);
-  }
-
-  async function handleTypeSubmit(values: { type: string }) {
-    const type = values.type as CapabilityType;
-    setCapabilityType(type);
-    if (type === "skill") {
-      setStep("skill-form");
-    } else {
-      setStep("describe");
-    }
   }
 
   function getAuth(): { apiKey?: string; oauthToken?: string } | null {
@@ -143,20 +88,20 @@ export default function AddCapability() {
       return null;
     }
 
-    // oauth mode
     if (oauthToken) return { oauthToken };
     return null;
   }
 
-  async function handleDescriptionSubmit(values: { description: string }) {
+  async function ensureAuth(
+    description: string,
+  ): Promise<{ apiKey?: string; oauthToken?: string } | null> {
     const prefs = getPreferenceValues<{ scaffoldingAuth: string }>();
     const auth = getAuth();
 
     if (!auth && prefs.scaffoldingAuth === "oauth") {
-      // need to sign in first
-      setPendingDescription(values.description);
+      setPendingDescription(description);
       setStep("oauth-login");
-      return;
+      return null;
     }
 
     if (!auth) {
@@ -165,9 +110,17 @@ export default function AddCapability() {
         title: "No API key configured",
         message: "Set your Anthropic API key in extension preferences",
       });
-      return;
+      return null;
     }
 
+    return auth;
+  }
+
+  // --- API scaffolding ---
+
+  async function handleDescriptionSubmit(values: { description: string }) {
+    const auth = await ensureAuth(values.description);
+    if (!auth) return;
     await runScaffold(values.description, auth);
   }
 
@@ -200,6 +153,72 @@ export default function AddCapability() {
     }
   }
 
+  // --- Skill scaffolding ---
+
+  async function handleSkillDescribeSubmit(values: { description: string }) {
+    const auth = await ensureAuth(values.description);
+    if (!auth) return;
+    await runSkillScaffold(values.description, auth);
+  }
+
+  async function runSkillScaffold(
+    description: string,
+    auth: { apiKey?: string; oauthToken?: string },
+  ) {
+    setStep("scaffolding");
+    setScaffoldLog([]);
+
+    const result = await scaffoldSkill(description, auth, log);
+
+    if (!result.success || !result.name) {
+      setError(result.error ?? "Scaffolding failed");
+      setStep("skill-describe");
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Scaffolding failed",
+        message: result.error,
+      });
+      return;
+    }
+
+    setSavedSkillName(result.name);
+    setStep("skill-done");
+  }
+
+  // --- MCP scaffolding ---
+
+  async function handleMcpDescribeSubmit(values: { description: string }) {
+    const auth = await ensureAuth(values.description);
+    if (!auth) return;
+    await runMcpScaffold(values.description, auth);
+  }
+
+  async function runMcpScaffold(
+    description: string,
+    auth: { apiKey?: string; oauthToken?: string },
+  ) {
+    setStep("scaffolding");
+    setScaffoldLog([]);
+
+    const result = await scaffoldMcp(description, auth, log);
+
+    if (!result.success || !result.config) {
+      setError(result.error ?? "Scaffolding failed");
+      setStep("mcp-describe");
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Scaffolding failed",
+        message: result.error,
+      });
+      return;
+    }
+
+    setMcpConfig(result.config);
+    setStep("mcp-done");
+  }
+
+  // --- Testing ---
+
   async function handleAuthDone(cfg: SourceConfig) {
     const credential = readCredential(cfg.slug) ?? "";
     await runTest(cfg, credential);
@@ -209,9 +228,8 @@ export default function AddCapability() {
     setStep("testing");
     log("Testing connection...");
 
-    const probed = "/";
     const result = await callApi(cfg, credential, {
-      path: probed,
+      path: "/",
       method: "GET",
     });
 
@@ -256,23 +274,108 @@ export default function AddCapability() {
     await runTest(updated, credential);
   }
 
+  // --- OAuth flow (for scaffolding auth) ---
+
+  async function handleOAuthResume(token: string) {
+    setOauthToken(token);
+    const auth = { oauthToken: token };
+
+    if (capabilityType === "api") {
+      await runScaffold(pendingDescription, auth);
+    } else if (capabilityType === "skill") {
+      await runSkillScaffold(pendingDescription, auth);
+    } else if (capabilityType === "mcp") {
+      await runMcpScaffold(pendingDescription, auth);
+    }
+  }
+
+  // === RENDER ===
+
   if (step === "select-type") {
     return (
       <Form
         navigationTitle="Add Capability"
         actions={
           <ActionPanel>
-            <Action.SubmitForm title="Continue" onSubmit={handleTypeSubmit} />
+            <Action.SubmitForm
+              title="Continue"
+              onSubmit={(values: { type: string }) => {
+                const type = values.type as CapabilityType;
+                setCapabilityType(type);
+                setStep("select-method");
+              }}
+            />
           </ActionPanel>
         }
       >
         <Form.Dropdown id="type" title="Type" defaultValue="api">
           <Form.Dropdown.Item value="api" title="API Connection" />
+          <Form.Dropdown.Item value="mcp" title="MCP Server" />
           <Form.Dropdown.Item value="skill" title="Skill" />
         </Form.Dropdown>
       </Form>
     );
   }
+
+  if (step === "select-method") {
+    return (
+      <Form
+        navigationTitle="Add Capability"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Continue"
+              onSubmit={(values: { method: string }) => {
+                const method = values.method as AddMethod;
+                if (capabilityType === "api") {
+                  setStep(method === "ai" ? "describe" : "manual-api");
+                } else if (capabilityType === "mcp") {
+                  setStep(method === "ai" ? "mcp-describe" : "manual-mcp");
+                } else {
+                  setStep(method === "ai" ? "skill-describe" : "skill-form");
+                }
+              }}
+            />
+          </ActionPanel>
+        }
+      >
+        <Form.Dropdown id="method" title="Method" defaultValue="ai">
+          <Form.Dropdown.Item value="ai" title="Scaffold with AI" />
+          <Form.Dropdown.Item value="manual" title="Add Manually" />
+        </Form.Dropdown>
+      </Form>
+    );
+  }
+
+  // --- Manual forms ---
+
+  if (step === "manual-api") {
+    return (
+      <ManualApiForm
+        onDone={(cfg) => {
+          setConfig(cfg);
+          if (cfg.authType === "none") {
+            runTest(cfg, "");
+          } else {
+            setStep("authenticate");
+          }
+        }}
+      />
+    );
+  }
+
+  if (step === "manual-mcp") {
+    return (
+      <ManualMcpForm
+        onDone={(cfg) => {
+          setMcpConfig(cfg);
+          setStep("mcp-done");
+        }}
+      />
+    );
+  }
+
+  // --- Skill forms ---
 
   if (step === "skill-form") {
     return (
@@ -282,6 +385,33 @@ export default function AddCapability() {
           setStep("skill-done");
         }}
       />
+    );
+  }
+
+  if (step === "skill-describe") {
+    return (
+      <Form
+        navigationTitle="Scaffold Skill with AI"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Scaffold Skill"
+              onSubmit={handleSkillDescribeSubmit}
+            />
+          </ActionPanel>
+        }
+      >
+        <Form.TextArea
+          id="description"
+          title="Describe the skill"
+          placeholder={
+            "e.g. A skill that reviews my daily Craft notes and summarizes action items.\n\n" +
+            "The AI agent will create step-by-step instructions referencing your installed capabilities."
+          }
+          autoFocus
+        />
+        {error && <Form.Description title="Error" text={error} />}
+      </Form>
     );
   }
 
@@ -307,6 +437,68 @@ export default function AddCapability() {
       />
     );
   }
+
+  // --- MCP describe ---
+
+  if (step === "mcp-describe") {
+    return (
+      <Form
+        navigationTitle="Scaffold MCP Server with AI"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Scaffold MCP"
+              onSubmit={handleMcpDescribeSubmit}
+            />
+          </ActionPanel>
+        }
+      >
+        <Form.TextArea
+          id="description"
+          title="Describe the MCP server"
+          placeholder={
+            "e.g. Add the GitHub MCP server for managing repos, issues, and PRs\n\n" +
+            "The AI agent will research the server and create its configuration."
+          }
+          autoFocus
+        />
+        {error && <Form.Description title="Error" text={error} />}
+      </Form>
+    );
+  }
+
+  if (step === "mcp-done") {
+    const cfg = mcpConfig;
+    return (
+      <Detail
+        markdown={[
+          `# ${cfg ? "MCP Server added" : "Done"}`,
+          "",
+          cfg ? `**Name:** ${cfg.name}` : "",
+          cfg
+            ? `**Command:** \`${cfg.command}${cfg.args ? " " + cfg.args.join(" ") : ""}\``
+            : "",
+          cfg?.description ? `**Description:** ${cfg.description}` : "",
+          "",
+          "The MCP server guide is available via `get-capability-guide`.",
+          "MCP servers are callable through `call-capability` using pseudo-paths like `GET /tools` and `POST /tools/<tool>/call`.",
+        ].join("\n")}
+        actions={
+          <ActionPanel>
+            <Action
+              title="Done"
+              onAction={async () => {
+                await showHUD(cfg ? `${cfg.name} ready` : "MCP server added");
+                await popToRoot();
+              }}
+            />
+          </ActionPanel>
+        }
+      />
+    );
+  }
+
+  // --- OAuth flow ---
 
   if (step === "oauth-login") {
     return (
@@ -356,15 +548,11 @@ export default function AddCapability() {
                   });
                   const tokens = await exchangeClaudeCode(code);
                   await saveClaudeTokens(tokens);
-                  setOauthToken(tokens.accessToken);
                   await showToast({
                     style: Toast.Style.Success,
                     title: "Signed in",
                   });
-                  // resume scaffolding with the pending description
-                  await runScaffold(pendingDescription, {
-                    oauthToken: tokens.accessToken,
-                  });
+                  await handleOAuthResume(tokens.accessToken);
                 } catch (err) {
                   await showToast({
                     style: Toast.Style.Failure,
@@ -387,6 +575,8 @@ export default function AddCapability() {
       </Form>
     );
   }
+
+  // --- API describe (AI scaffold) ---
 
   if (step === "describe") {
     return (
@@ -414,17 +604,21 @@ export default function AddCapability() {
     );
   }
 
+  // --- Scaffolding / Testing progress ---
+
   if (step === "scaffolding" || step === "testing") {
-    const logOutput = scaffoldLog.join("\n") || "Starting...";
     return (
-      <Detail
-        markdown={`# ${step === "testing" ? "Testing connection" : "Scaffolding"}\n\n\`\`\`\n${logOutput}\n\`\`\``}
+      <ScaffoldProgress
+        title={step === "testing" ? "Testing connection" : "Scaffolding"}
         navigationTitle={
           step === "testing" ? "Testing..." : "Adding Capability..."
         }
+        log={scaffoldLog}
       />
     );
   }
+
+  // --- Authenticate ---
 
   if (step === "authenticate" && config) {
     return (
@@ -435,6 +629,8 @@ export default function AddCapability() {
       />
     );
   }
+
+  // --- Fix URL ---
 
   if (step === "fix-url" && config) {
     return (
@@ -463,6 +659,8 @@ export default function AddCapability() {
     );
   }
 
+  // --- Done ---
+
   if (step === "done" && config) {
     const ok = testResult?.ok ?? true;
     const isAuthFail = testResult?.failureKind === "auth";
@@ -471,7 +669,7 @@ export default function AddCapability() {
     return (
       <Detail
         markdown={[
-          `# ${ok ? "✓" : "⚠"} ${config.name}`,
+          `# ${ok ? "Done" : "Warning"} — ${config.name}`,
           "",
           `**Base URL:** ${config.baseUrl}`,
           `**Auth:** ${config.authType}${config.apiKeyHeader ? ` (${config.apiKeyHeader})` : ""}`,

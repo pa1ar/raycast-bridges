@@ -86,6 +86,12 @@ export function writeCredential(
   );
 }
 
+export function deleteCredential(slug: string) {
+  const cachePath = credentialCachePath(slug);
+  if (!existsSync(cachePath)) return;
+  rmSync(cachePath);
+}
+
 export function deleteSource(slug: string) {
   const dir = sourceDir(slug);
   if (!existsSync(dir)) return;

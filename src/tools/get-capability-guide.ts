@@ -1,8 +1,9 @@
 import { readGuide, readSourceConfig } from "../lib/sources";
 import { readSkillMd } from "../lib/skills";
+import { readMcpConfig, readMcpGuide } from "../lib/mcps";
 
 interface Input {
-  /** slug of an API source or name of a skill */
+  /** slug of an API source, MCP server, or name of a skill */
   source: string;
 }
 
@@ -34,6 +35,42 @@ export default async function getCapabilityGuide(
         guide,
         "",
         "You now have the full API documentation. Use call-capability to make requests.",
+      ].join("\n"),
+    };
+  }
+
+  // try MCP server
+  const mcpCfg = readMcpConfig(input.source);
+  if (mcpCfg) {
+    const guide = readMcpGuide(input.source);
+    const meta = [
+      `# Guide: ${mcpCfg.name} (MCP Server)`,
+      `Command: \`${mcpCfg.command}${mcpCfg.args ? " " + mcpCfg.args.join(" ") : ""}\``,
+    ];
+    if (mcpCfg.env) {
+      meta.push(`Env vars: ${Object.keys(mcpCfg.env).join(", ")}`);
+    }
+    meta.push("");
+
+    if (!guide) {
+      return {
+        text: [
+          ...meta,
+          "No guide available for this MCP server.",
+          "",
+          "Call it via call-capability using MCP pseudo-paths.",
+          "Examples: GET /tools, POST /tools/<tool-name>/call, GET /resources, POST /resources/read.",
+        ].join("\n"),
+      };
+    }
+
+    return {
+      text: [
+        ...meta,
+        guide,
+        "",
+        "Call it via call-capability using MCP pseudo-paths.",
+        "Examples: GET /tools, POST /tools/<tool-name>/call, GET /resources, POST /resources/read.",
       ].join("\n"),
     };
   }

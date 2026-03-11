@@ -1,15 +1,42 @@
 import { Action, ActionPanel, Form, Toast, showToast } from "@raycast/api";
 import { writeCredential } from "../lib/sources";
-import type { SourceConfig } from "../lib/types";
+import type { AuthType, SourceConfig } from "../lib/types";
 
-interface Props {
+interface BaseProps {
+  name: string;
+  authType: AuthType;
+  apiKeyHeader?: string;
+  onDone: () => void;
+  onCancel: () => void;
+  writeCredentialFn: (value: string) => void;
+}
+
+interface SourceProps {
   config: SourceConfig;
   onDone: () => void;
   onCancel: () => void;
 }
 
-export function CredentialForm({ config, onDone, onCancel }: Props) {
-  const isBasic = config.authType === "basic";
+// overloaded: pass config (source) or explicit fields (mcp)
+type Props = SourceProps | BaseProps;
+
+function isSourceProps(props: Props): props is SourceProps {
+  return "config" in props;
+}
+
+export function CredentialForm(props: Props) {
+  const name = isSourceProps(props) ? props.config.name : props.name;
+  const authType = isSourceProps(props)
+    ? props.config.authType
+    : props.authType;
+  const apiKeyHeader = isSourceProps(props)
+    ? props.config.apiKeyHeader
+    : props.apiKeyHeader;
+  const writeFn = isSourceProps(props)
+    ? (value: string) => writeCredential(props.config.slug, value)
+    : props.writeCredentialFn;
+
+  const isBasic = authType === "basic";
 
   async function handleSubmit(values: {
     credential: string;
@@ -38,34 +65,34 @@ export function CredentialForm({ config, onDone, onCancel }: Props) {
       value = values.credential.trim();
     }
 
-    writeCredential(config.slug, value);
+    writeFn(value);
     await showToast({
       style: Toast.Style.Success,
-      title: `${config.name} authenticated`,
+      title: `${name} authenticated`,
     });
-    onDone();
+    props.onDone();
   }
 
   const tokenLabel =
-    config.authType === "bearer"
+    authType === "bearer" || authType === "oauth"
       ? "Bearer Token"
-      : config.authType === "api-key"
-        ? `API Key (${config.apiKeyHeader ?? "X-API-Key"})`
+      : authType === "api-key"
+        ? `API Key (${apiKeyHeader ?? "X-API-Key"})`
         : "Credential";
 
   return (
     <Form
-      navigationTitle={`Authenticate ${config.name}`}
+      navigationTitle={`Authenticate ${name}`}
       actions={
         <ActionPanel>
           <Action.SubmitForm title="Save Credential" onSubmit={handleSubmit} />
-          <Action title="Skip" onAction={onCancel} />
+          <Action title="Skip" onAction={props.onCancel} />
         </ActionPanel>
       }
     >
       <Form.Description
         title="Authentication required"
-        text={`${config.name} uses ${config.authType} authentication. Enter your credentials below.`}
+        text={`${name} uses ${authType} authentication. Enter your credentials below.`}
       />
       {isBasic ? (
         <>

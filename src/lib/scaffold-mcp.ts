@@ -7,23 +7,24 @@ import {
   rmSync,
   writeFileSync,
 } from "fs";
-import { sourceConfigPath, sourceDir, sourceGuidePath } from "./paths";
+import { mcpConfigPath, mcpDir, mcpGuidePath, MCPS_DIR } from "./paths";
 import { findClaude, appendLog } from "./scaffold-shared";
-import type { SourceConfig } from "./types";
+import type { McpConfig } from "./types";
 
-const SCAFFOLD_PROMPT = (description: string) =>
+const SCAFFOLD_MCP_PROMPT = (description: string) =>
   `
-You are scaffolding a new API capability for a local Raycast AI extension called Bridges.
+You are scaffolding a new MCP (Model Context Protocol) server configuration for a Raycast AI extension called Bridges.
 
 User description: ${description}
 
 Your task: create exactly two files in the current working directory.
 
 ## Step 1 — Research
-If a URL was provided, search the web for the official API documentation for that service.
-Look for: authentication method, real endpoint paths, request/response formats.
-Do NOT invent endpoints — only document what you confirm from the docs or spec.
-If you find an OpenAPI/Swagger spec URL, fetch it.
+Search the web for the MCP server the user described. Look for:
+- npm package name or GitHub repository
+- Installation command (npx, uvx, etc.)
+- Required environment variables
+- Available tools/resources the server provides
 
 ## Step 2 — Write config.json
 JSON file with this exact schema:
@@ -31,70 +32,64 @@ JSON file with this exact schema:
   "slug": "<kebab-case-id>",
   "name": "<Human Readable Name>",
   "description": "<one sentence — shown in capability list>",
-  "baseUrl": "<exact base URL — use what the user provided, do NOT change the domain>",
-  "authType": "<bearer|api-key|basic|oauth|none>",
-  "apiKeyHeader": "<header name, only if authType is api-key>",
-  "defaultHeaders": { "<key>": "<value>" },
+  "command": "<command to start the server, e.g. npx>",
+  "args": ["<arg1>", "<arg2>"],
+  "env": { "KEY": "VALUE_PLACEHOLDER" },
+  "authType": "none",
   "enabled": true,
   "createdAt": ${Date.now()},
   "updatedAt": ${Date.now()}
 }
 
-authType:
-- "bearer" → Authorization: Bearer <token>
-- "api-key" → custom header (set apiKeyHeader)
-- "basic" → HTTP Basic Auth
-- "oauth" → OAuth 2.0 (add oauthConfig with clientId, authUrl, tokenUrl, redirectUri, scopes)
-- "none" → no auth
+Notes:
+- command is usually "npx" or "uvx" or a direct binary path
+- args includes the package name and any flags (e.g. ["@modelcontextprotocol/server-github", "--stdio"])
+- env contains required environment variables with placeholder values (user will fill in real values)
+- authType is usually "none" since MCP servers handle auth via env vars
 
 ## Step 3 — Write guide.md
-The guide is loaded ONCE by an AI assistant before making API calls. It must be complete and accurate.
+The guide documents what the MCP server does and what tools it provides.
 
 Structure:
-# <Name> API
+# <Name> MCP Server
 
-## Authentication
-<exact header format>
+## Setup
+<installation and env var requirements>
 
-## Endpoints
-### <Name>
-- <METHOD> \`<path>\`
+## Tools
+### <tool-name>
 - <description>
-- Params: <list>
-- Response: <shape>
+- Input: <params>
+- Output: <what it returns>
 
-[one section per endpoint — only document confirmed endpoints]
+[one section per tool]
 
 ## Typical Workflow
-<numbered steps for the most common task, using the exact endpoint paths above>
+<numbered steps for common tasks>
 
-## Example
-<real request + expected response shape>
-
-Rules for the guide:
-- NEVER document /resource/{id} URL path params unless the spec explicitly shows it — many APIs use query params (?id=) instead
-- If an endpoint is unconfirmed, mark it [unconfirmed]
-- Include a "Typical Workflow" section showing the exact call sequence
-- Set defaultHeaders in config.json if the API has a preferred response format (e.g. Accept: text/markdown)
+Rules:
+- Only document confirmed tools from official docs
+- If a tool is unconfirmed, mark it [unconfirmed]
+- Include env var setup instructions
 
 Write both files now. Do not ask questions.
 `.trim();
 
-export interface ScaffoldResult {
+export interface ScaffoldMcpResult {
   success: boolean;
-  config?: SourceConfig;
+  config?: McpConfig;
   error?: string;
 }
 
-export async function scaffoldSource(
+export async function scaffoldMcp(
   description: string,
   auth: { apiKey?: string; oauthToken?: string },
   onOutput: (line: string) => void,
-): Promise<ScaffoldResult> {
-  appendLog(`starting scaffold: ${description.slice(0, 100)}`);
+): Promise<ScaffoldMcpResult> {
+  appendLog(`starting mcp scaffold: ${description.slice(0, 100)}`);
 
   const tempSlug = `_scaffold_${Date.now()}`;
-  const workDir = sourceDir(tempSlug);
+  const workDir = mcpDir(tempSlug);
   mkdirSync(workDir, { recursive: true });
 
   const claudePath = findClaude();
@@ -114,7 +109,7 @@ export async function scaffoldSource(
 
   try {
     const messages = query({
-      prompt: SCAFFOLD_PROMPT(description),
+      prompt: SCAFFOLD_MCP_PROMPT(description),
       options: {
         cwd: workDir,
         env: {
@@ -122,7 +117,6 @@ export async function scaffoldSource(
           ...(auth.oauthToken
             ? { CLAUDE_CODE_OAUTH_TOKEN: auth.oauthToken }
             : { ANTHROPIC_API_KEY: auth.apiKey }),
-          // strip vars that block nested claude sessions
           CLAUDECODE: undefined,
           CLAUDE_CODE_SESSION_ID: undefined,
           CLAUDE_CODE_ENTRYPOINT: undefined,
@@ -139,8 +133,7 @@ export async function scaffoldSource(
       if (msg.type === "assistant") {
         for (const block of msg.message.content) {
           if (block.type === "text" && block.text.trim()) {
-            const lines = block.text.trim().split("\n").filter(Boolean);
-            lines.forEach(onOutput);
+            block.text.trim().split("\n").filter(Boolean).forEach(onOutput);
             appendLog(`agent: ${block.text.slice(0, 100)}`);
           } else if (block.type === "tool_use") {
             onOutput(
@@ -154,7 +147,6 @@ export async function scaffoldSource(
     const msg = err instanceof Error ? err.message : String(err);
     appendLog(`agent error: ${msg}`);
     onOutput(`Error: ${msg}`);
-    // clean up temp dir
     try {
       rmSync(workDir, { recursive: true });
     } catch {
@@ -163,21 +155,19 @@ export async function scaffoldSource(
     return { success: false, error: msg };
   }
 
-  // read what the agent wrote
-  if (!existsSync(sourceConfigPath(tempSlug))) {
+  // read config
+  if (!existsSync(mcpConfigPath(tempSlug))) {
     try {
       rmSync(workDir, { recursive: true });
     } catch {
       /* ignore */
     }
-    const err = "Agent did not produce config.json";
-    appendLog(err);
-    return { success: false, error: err };
+    return { success: false, error: "Agent did not produce config.json" };
   }
 
-  let config: SourceConfig;
+  let config: McpConfig;
   try {
-    config = JSON.parse(readFileSync(sourceConfigPath(tempSlug), "utf-8"));
+    config = JSON.parse(readFileSync(mcpConfigPath(tempSlug), "utf-8"));
   } catch (e) {
     try {
       rmSync(workDir, { recursive: true });
@@ -191,20 +181,21 @@ export async function scaffoldSource(
   config.createdAt = config.createdAt || now;
   config.updatedAt = now;
 
-  const finalDir = sourceDir(config.slug);
+  const finalDir = mcpDir(config.slug);
   try {
+    mkdirSync(MCPS_DIR, { recursive: true });
     renameSync(workDir, finalDir);
   } catch {
-    // dir exists — overwrite config + guide, keep credentials
+    // dir exists — overwrite
     writeFileSync(
-      sourceConfigPath(config.slug),
+      mcpConfigPath(config.slug),
       JSON.stringify(config, null, 2),
       "utf-8",
     );
-    if (existsSync(sourceGuidePath(tempSlug))) {
+    if (existsSync(mcpGuidePath(tempSlug))) {
       writeFileSync(
-        sourceGuidePath(config.slug),
-        readFileSync(sourceGuidePath(tempSlug)),
+        mcpGuidePath(config.slug),
+        readFileSync(mcpGuidePath(tempSlug)),
       );
     }
     try {
@@ -215,6 +206,6 @@ export async function scaffoldSource(
   }
 
   onOutput(`Done: ${config.name}`);
-  appendLog(`scaffold complete: ${config.slug}`);
+  appendLog(`mcp scaffold complete: ${config.slug}`);
   return { success: true, config };
 }

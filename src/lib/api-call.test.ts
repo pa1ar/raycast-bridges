@@ -115,6 +115,22 @@ describe("callApi", () => {
     );
   });
 
+  it("adds bearer auth header for oauth auth type", async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve("ok"),
+    });
+
+    await callApi(makeConfig({ authType: "oauth" }), "oauth-token", {
+      path: "/data",
+      method: "GET",
+    });
+
+    const [, opts] = fetchSpy.mock.calls[0];
+    expect(opts.headers["Authorization"]).toBe("Bearer oauth-token");
+  });
+
   it("does not add auth header for authType none", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,

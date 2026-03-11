@@ -1,5 +1,6 @@
 import { loadAllSources } from "../lib/sources";
 import { loadAllSkills } from "../lib/skills";
+import { loadAllMcps } from "../lib/mcps";
 
 interface Input {
   /** search query — keywords describing what the user wants to do (e.g. "calendar events", "send email", "craft docs") */
@@ -10,7 +11,7 @@ interface Match {
   slug: string;
   name: string;
   description: string;
-  type: "api" | "skill";
+  type: "api" | "skill" | "mcp";
   isAuthenticated?: boolean;
   matchedFields: string[];
   score: number;
@@ -28,7 +29,8 @@ export default async function searchCapabilities(
 ): Promise<{ text: string }> {
   const sources = loadAllSources();
   const skills = loadAllSkills();
-  const total = sources.length + skills.length;
+  const mcps = loadAllMcps();
+  const total = sources.length + skills.length + mcps.length;
 
   if (total === 0) {
     return {
@@ -38,7 +40,7 @@ export default async function searchCapabilities(
 
   // if few capabilities, skip search and return all
   if (total <= LIST_ALL_THRESHOLD) {
-    return { text: formatAll(sources, skills) };
+    return { text: formatAll(sources, skills, mcps) };
   }
 
   const queryWords = input.query
@@ -47,7 +49,7 @@ export default async function searchCapabilities(
     .filter((w) => w.length > 1);
 
   if (queryWords.length === 0) {
-    return { text: formatAll(sources, skills) };
+    return { text: formatAll(sources, skills, mcps) };
   }
 
   const matches: Match[] = [];
@@ -67,7 +69,6 @@ export default async function searchCapabilities(
       const hits = searchText(fieldValue, queryWords);
       if (hits.length > 0) {
         matchedFields.push(fieldName);
-        // weight: name/slug/description matches worth more than guide body
         const weight = fieldName === "guide" ? 1 : 3;
         score += hits.length * weight;
       }
@@ -80,6 +81,39 @@ export default async function searchCapabilities(
         description: s.config.description ?? s.config.baseUrl,
         type: "api",
         isAuthenticated: s.isAuthenticated,
+        matchedFields,
+        score,
+      });
+    }
+  }
+
+  for (const m of mcps) {
+    const fields: [string, string][] = [
+      ["slug", m.config.slug],
+      ["name", m.config.name],
+      ["description", m.config.description ?? ""],
+      ["command", m.config.command],
+      ["guide", m.guide],
+    ];
+
+    const matchedFields: string[] = [];
+    let score = 0;
+    for (const [fieldName, fieldValue] of fields) {
+      const hits = searchText(fieldValue, queryWords);
+      if (hits.length > 0) {
+        matchedFields.push(fieldName);
+        const weight = fieldName === "guide" ? 1 : 3;
+        score += hits.length * weight;
+      }
+    }
+
+    if (score > 0) {
+      matches.push({
+        slug: m.config.slug,
+        name: m.config.name,
+        description: m.config.description ?? m.config.command,
+        type: "mcp",
+        isAuthenticated: m.isAuthenticated,
         matchedFields,
         score,
       });
@@ -131,15 +165,16 @@ export default async function searchCapabilities(
 
   const lines: string[] = [`Capabilities matching "${input.query}":`, ""];
   for (const m of matches) {
+    const typeTag = m.type === "mcp" ? " [MCP]" : "";
     const auth =
-      m.type === "api"
+      m.type === "api" || m.type === "mcp"
         ? ` [${m.isAuthenticated ? "authenticated" : "NOT authenticated"}]`
         : "";
-    lines.push(`- ${m.slug}: ${m.name} — ${m.description}${auth}`);
+    lines.push(`- ${m.slug}: ${m.name}${typeTag} — ${m.description}${auth}`);
   }
   lines.push("");
   lines.push(
-    "Use get-capability-guide with the slug to load full docs before making API calls.",
+    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths like /tools or /tools/<tool>/call for MCP servers.",
   );
 
   return { text: lines.join("\n") };
@@ -148,6 +183,7 @@ export default async function searchCapabilities(
 function formatAll(
   sources: ReturnType<typeof loadAllSources>,
   skills: ReturnType<typeof loadAllSkills>,
+  mcps: ReturnType<typeof loadAllMcps>,
 ): string {
   const lines: string[] = ["All capabilities (short list):", ""];
 
@@ -156,13 +192,18 @@ function formatAll(
       `- ${s.config.slug}: ${s.config.name} — ${s.config.description ?? s.config.baseUrl} [${s.isAuthenticated ? "authenticated" : "NOT authenticated"}]`,
     );
   }
+  for (const m of mcps) {
+    lines.push(
+      `- ${m.config.slug}: ${m.config.name} [MCP] — ${m.config.description ?? m.config.command} [${m.isAuthenticated ? "ready" : "needs setup"}]`,
+    );
+  }
   for (const sk of skills) {
     lines.push(`- ${sk.name}: ${sk.description}`);
   }
 
   lines.push("");
   lines.push(
-    "Use get-capability-guide with the slug to load full docs before making API calls.",
+    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths like /tools or /tools/<tool>/call for MCP servers.",
   );
   return lines.join("\n");
 }

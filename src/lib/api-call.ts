@@ -52,7 +52,7 @@ function buildHeaders(
 
   if (config.authType === "none" || !credential) return headers;
 
-  if (config.authType === "bearer") {
+  if (config.authType === "bearer" || config.authType === "oauth") {
     headers["Authorization"] = `Bearer ${credential}`;
   } else if (config.authType === "api-key") {
     headers[config.apiKeyHeader || "X-API-Key"] = credential;
