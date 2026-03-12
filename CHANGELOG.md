@@ -1,5 +1,11 @@
 # Changelog
 
+## [Edit Guide action] - 2026-03-12
+
+- "Edit Guide" / "Edit Skill File" action in Manage Capabilities opens guide.md or SKILL.md in the default editor
+- Available for API Sources, MCP Servers, CLI Tools, and Skills
+- Shows toast if the file doesn't exist yet
+
 ## [CLI connectors + call-capability verbosity] - 2026-03-12
 
 - CLI tool connectors: wrap shell CLIs (gh, vercel, kubectl, etc.) so Raycast AI can execute commands and report results

@@ -12,6 +12,7 @@ import {
   showToast,
   useNavigation,
 } from "@raycast/api";
+import { existsSync } from "fs";
 import { useEffect, useState } from "react";
 import { clearClaudeTokens, loadClaudeTokens } from "./lib/claude-auth-store";
 import { startClaudeOAuth } from "./lib/claude-oauth";
@@ -37,6 +38,12 @@ import {
   writeCliConfig,
 } from "./lib/clis";
 import { deleteSkill, loadAllSkills } from "./lib/skills";
+import {
+  sourceGuidePath,
+  mcpGuidePath,
+  cliGuidePath,
+  skillMdPath,
+} from "./lib/paths";
 import type {
   LoadedCli,
   LoadedMcp,
@@ -260,6 +267,21 @@ export default function ManageCapabilities() {
                     }
                   />
                   <Action
+                    icon={Icon.Document}
+                    title="Edit Guide"
+                    onAction={async () => {
+                      const p = sourceGuidePath(source.config.slug);
+                      if (!existsSync(p)) {
+                        await showToast({
+                          style: Toast.Style.Failure,
+                          title: "guide.md not found",
+                        });
+                        return;
+                      }
+                      open(p);
+                    }}
+                  />
+                  <Action
                     icon={Icon.Key}
                     title="Set Credentials"
                     onAction={() =>
@@ -345,6 +367,21 @@ export default function ManageCapabilities() {
                     onAction={() =>
                       push(<EditMcpForm config={mcp.config} onDone={refresh} />)
                     }
+                  />
+                  <Action
+                    icon={Icon.Document}
+                    title="Edit Guide"
+                    onAction={async () => {
+                      const p = mcpGuidePath(mcp.config.slug);
+                      if (!existsSync(p)) {
+                        await showToast({
+                          style: Toast.Style.Failure,
+                          title: "guide.md not found",
+                        });
+                        return;
+                      }
+                      open(p);
+                    }}
                   />
                   {mcp.config.authType === "oauth" && (
                     <Action
@@ -444,6 +481,21 @@ export default function ManageCapabilities() {
                     }
                   />
                   <Action
+                    icon={Icon.Document}
+                    title="Edit Guide"
+                    onAction={async () => {
+                      const p = cliGuidePath(cli.config.slug);
+                      if (!existsSync(p)) {
+                        await showToast({
+                          style: Toast.Style.Failure,
+                          title: "guide.md not found",
+                        });
+                        return;
+                      }
+                      open(p);
+                    }}
+                  />
+                  <Action
                     icon={Icon.Wand}
                     title="Edit with AI"
                     onAction={() =>
@@ -495,6 +547,21 @@ export default function ManageCapabilities() {
                     onAction={() =>
                       push(<EditSkillForm skill={skill} onDone={refresh} />)
                     }
+                  />
+                  <Action
+                    icon={Icon.Document}
+                    title="Edit Skill File"
+                    onAction={async () => {
+                      const p = skillMdPath(skill.name);
+                      if (!existsSync(p)) {
+                        await showToast({
+                          style: Toast.Style.Failure,
+                          title: "SKILL.md not found",
+                        });
+                        return;
+                      }
+                      open(p);
+                    }}
                   />
                   <Action
                     icon={Icon.Wand}
