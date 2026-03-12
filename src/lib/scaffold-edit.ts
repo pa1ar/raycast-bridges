@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { readCliConfig, readCliGuide } from "./clis";
 import { readMcpConfig, readMcpGuide } from "./mcps";
-import { mcpDir, skillDir, sourceDir } from "./paths";
+import { cliDir, mcpDir, skillDir, sourceDir } from "./paths";
 import { findClaude, appendLog } from "./scaffold-shared";
 import { readSkillMd } from "./skills";
 import { readGuide, readSourceConfig } from "./sources";
@@ -49,7 +50,7 @@ export interface ScaffoldEditResult {
 
 export async function scaffoldEdit(
   slug: string,
-  type: "api" | "mcp" | "skill",
+  type: "api" | "mcp" | "skill" | "cli",
   editDescription: string,
   auth: { apiKey?: string; oauthToken?: string },
   onOutput: (line: string) => void,
@@ -72,6 +73,11 @@ export async function scaffoldEdit(
     const config = readMcpConfig(slug);
     existingConfig = config ? JSON.stringify(config, null, 2) : "{}";
     existingGuide = readMcpGuide(slug);
+  } else if (type === "cli") {
+    workDirPath = cliDir(slug);
+    const config = readCliConfig(slug);
+    existingConfig = config ? JSON.stringify(config, null, 2) : "{}";
+    existingGuide = readCliGuide(slug);
   } else {
     workDirPath = skillDir(slug);
     existingGuide = readSkillMd(slug);

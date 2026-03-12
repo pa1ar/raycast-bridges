@@ -30,12 +30,24 @@ import {
   writeMcpConfig,
   writeMcpCredential,
 } from "./lib/mcps";
+import {
+  deleteCli,
+  loadAllClis,
+  readCliConfig,
+  writeCliConfig,
+} from "./lib/clis";
 import { deleteSkill, loadAllSkills } from "./lib/skills";
-import type { LoadedMcp, LoadedSource, SkillInfo } from "./lib/types";
+import type {
+  LoadedCli,
+  LoadedMcp,
+  LoadedSource,
+  SkillInfo,
+} from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 import { EditSourceForm } from "./components/EditSourceForm";
 import { EditSkillForm } from "./components/EditSkillForm";
 import { EditMcpForm } from "./components/EditMcpForm";
+import { EditCliForm } from "./components/EditCliForm";
 import { EditWithAiForm } from "./components/EditWithAiForm";
 import { OAuthCodeForm } from "./components/OAuthCodeForm";
 import { authorizeRemoteMcp, callMcp } from "./lib/mcp-client";
@@ -45,6 +57,7 @@ export default function ManageCapabilities() {
     loadAllSources(false),
   );
   const [mcps, setMcps] = useState<LoadedMcp[]>(() => loadAllMcps(false));
+  const [clis, setClis] = useState<LoadedCli[]>(() => loadAllClis(false));
   const [skills, setSkills] = useState<SkillInfo[]>(() => loadAllSkills());
   const [hasOAuth, setHasOAuth] = useState(false);
   const { push } = useNavigation();
@@ -61,6 +74,7 @@ export default function ManageCapabilities() {
   function refreshAll() {
     setSources(loadAllSources(false));
     setMcps(loadAllMcps(false));
+    setClis(loadAllClis(false));
     setSkills(loadAllSkills());
     loadClaudeTokens().then((t) => setHasOAuth(t !== null));
   }
@@ -68,6 +82,7 @@ export default function ManageCapabilities() {
   function refresh() {
     setSources(loadAllSources(false));
     setMcps(loadAllMcps(false));
+    setClis(loadAllClis(false));
     setSkills(loadAllSkills());
   }
 
@@ -91,6 +106,18 @@ export default function ManageCapabilities() {
     });
     if (!confirmed) return;
     deleteMcp(slug);
+    await showToast({ style: Toast.Style.Success, title: `${name} removed` });
+    refresh();
+  }
+
+  async function handleDeleteCli(slug: string, name: string) {
+    const confirmed = await confirmAlert({
+      title: `Remove ${name}?`,
+      message: "This will delete the CLI tool configuration.",
+      primaryAction: { title: "Remove", style: Alert.ActionStyle.Destructive },
+    });
+    if (!confirmed) return;
+    deleteCli(slug);
     await showToast({ style: Toast.Style.Success, title: `${name} removed` });
     refresh();
   }
@@ -125,6 +152,15 @@ export default function ManageCapabilities() {
     config.enabled = !config.enabled;
     config.updatedAt = Date.now();
     writeMcpConfig(mcp.config.slug, config);
+    refresh();
+  }
+
+  async function handleToggleCli(cli: LoadedCli) {
+    const config = readCliConfig(cli.config.slug);
+    if (!config) return;
+    config.enabled = !config.enabled;
+    config.updatedAt = Date.now();
+    writeCliConfig(cli.config.slug, config);
     refresh();
   }
 
@@ -376,6 +412,64 @@ export default function ManageCapabilities() {
                     style={Action.Style.Destructive}
                     onAction={() =>
                       handleDeleteMcp(mcp.config.slug, mcp.config.name)
+                    }
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+
+      {clis.length > 0 && (
+        <List.Section title="CLI Tools">
+          {clis.map((cli) => (
+            <List.Item
+              key={cli.config.slug}
+              icon={cli.config.enabled ? Icon.Terminal : Icon.CircleDisabled}
+              title={cli.config.name}
+              subtitle={cli.config.command}
+              accessories={[
+                cli.config.enabled
+                  ? { tag: { value: "ready", color: Color.Green } }
+                  : { tag: { value: "disabled", color: Color.SecondaryText } },
+              ]}
+              actions={
+                <ActionPanel>
+                  <Action
+                    icon={Icon.Pencil}
+                    title="Edit"
+                    onAction={() =>
+                      push(<EditCliForm config={cli.config} onDone={refresh} />)
+                    }
+                  />
+                  <Action
+                    icon={Icon.Wand}
+                    title="Edit with AI"
+                    onAction={() =>
+                      push(
+                        <EditWithAiForm
+                          slug={cli.config.slug}
+                          type="cli"
+                          name={cli.config.name}
+                          onDone={refresh}
+                        />,
+                      )
+                    }
+                  />
+                  <Action
+                    icon={
+                      cli.config.enabled ? Icon.CircleDisabled : Icon.Circle
+                    }
+                    title={cli.config.enabled ? "Disable" : "Enable"}
+                    onAction={() => handleToggleCli(cli)}
+                  />
+                  <Action
+                    icon={Icon.Trash}
+                    title="Remove"
+                    style={Action.Style.Destructive}
+                    onAction={() =>
+                      handleDeleteCli(cli.config.slug, cli.config.name)
                     }
                   />
                 </ActionPanel>

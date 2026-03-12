@@ -17,15 +17,17 @@ import { exchangeClaudeCode, startClaudeOAuth } from "./lib/claude-oauth";
 import { scaffoldSource } from "./lib/scaffold";
 import { scaffoldSkill } from "./lib/scaffold-skill";
 import { scaffoldMcp } from "./lib/scaffold-mcp";
+import { scaffoldCli } from "./lib/scaffold-cli";
 import { readCredential, writeSourceConfig } from "./lib/sources";
-import type { McpConfig, SourceConfig } from "./lib/types";
+import type { CliConfig, McpConfig, SourceConfig } from "./lib/types";
 import { CredentialForm } from "./components/CredentialForm";
 import { ManualApiForm } from "./components/ManualApiForm";
 import { ManualMcpForm } from "./components/ManualMcpForm";
+import { ManualCliForm } from "./components/ManualCliForm";
 import { SkillForm } from "./components/SkillForm";
 import { ScaffoldProgress } from "./components/ScaffoldProgress";
 
-type CapabilityType = "api" | "skill" | "mcp";
+type CapabilityType = "api" | "skill" | "mcp" | "cli";
 type AddMethod = "ai" | "manual";
 type Step =
   | "select-type"
@@ -44,7 +46,10 @@ type Step =
   | "manual-api"
   | "manual-mcp"
   | "mcp-describe"
-  | "mcp-done";
+  | "mcp-done"
+  | "manual-cli"
+  | "cli-describe"
+  | "cli-done";
 
 type TestFailureKind = "auth" | "url" | "unknown";
 
@@ -61,6 +66,7 @@ export default function AddCapability() {
   const [scaffoldLog, setScaffoldLog] = useState<string[]>([]);
   const [config, setConfig] = useState<SourceConfig | null>(null);
   const [mcpConfig, setMcpConfig] = useState<McpConfig | null>(null);
+  const [cliConfig, setCliConfig] = useState<CliConfig | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSkillName, setSavedSkillName] = useState<string>("");
@@ -217,6 +223,38 @@ export default function AddCapability() {
     setStep("mcp-done");
   }
 
+  // --- CLI scaffolding ---
+
+  async function handleCliDescribeSubmit(values: { description: string }) {
+    const auth = await ensureAuth(values.description);
+    if (!auth) return;
+    await runCliScaffold(values.description, auth);
+  }
+
+  async function runCliScaffold(
+    description: string,
+    auth: { apiKey?: string; oauthToken?: string },
+  ) {
+    setStep("scaffolding");
+    setScaffoldLog([]);
+
+    const result = await scaffoldCli(description, auth, log);
+
+    if (!result.success || !result.config) {
+      setError(result.error ?? "Scaffolding failed");
+      setStep("cli-describe");
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Scaffolding failed",
+        message: result.error,
+      });
+      return;
+    }
+
+    setCliConfig(result.config);
+    setStep("cli-done");
+  }
+
   // --- Testing ---
 
   async function handleAuthDone(cfg: SourceConfig) {
@@ -286,6 +324,8 @@ export default function AddCapability() {
       await runSkillScaffold(pendingDescription, auth);
     } else if (capabilityType === "mcp") {
       await runMcpScaffold(pendingDescription, auth);
+    } else if (capabilityType === "cli") {
+      await runCliScaffold(pendingDescription, auth);
     }
   }
 
@@ -311,6 +351,7 @@ export default function AddCapability() {
         <Form.Dropdown id="type" title="Type" defaultValue="api">
           <Form.Dropdown.Item value="api" title="API Connection" />
           <Form.Dropdown.Item value="mcp" title="MCP Server" />
+          <Form.Dropdown.Item value="cli" title="CLI Tool" />
           <Form.Dropdown.Item value="skill" title="Skill" />
         </Form.Dropdown>
       </Form>
@@ -331,6 +372,8 @@ export default function AddCapability() {
                   setStep(method === "ai" ? "describe" : "manual-api");
                 } else if (capabilityType === "mcp") {
                   setStep(method === "ai" ? "mcp-describe" : "manual-mcp");
+                } else if (capabilityType === "cli") {
+                  setStep(method === "ai" ? "cli-describe" : "manual-cli");
                 } else {
                   setStep(method === "ai" ? "skill-describe" : "skill-form");
                 }
@@ -370,6 +413,17 @@ export default function AddCapability() {
         onDone={(cfg) => {
           setMcpConfig(cfg);
           setStep("mcp-done");
+        }}
+      />
+    );
+  }
+
+  if (step === "manual-cli") {
+    return (
+      <ManualCliForm
+        onDone={(cfg) => {
+          setCliConfig(cfg);
+          setStep("cli-done");
         }}
       />
     );
@@ -489,6 +543,64 @@ export default function AddCapability() {
               title="Done"
               onAction={async () => {
                 await showHUD(cfg ? `${cfg.name} ready` : "MCP server added");
+                await popToRoot();
+              }}
+            />
+          </ActionPanel>
+        }
+      />
+    );
+  }
+
+  // --- CLI describe ---
+
+  if (step === "cli-describe") {
+    return (
+      <Form
+        navigationTitle="Scaffold CLI Tool with AI"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Scaffold CLI"
+              onSubmit={handleCliDescribeSubmit}
+            />
+          </ActionPanel>
+        }
+      >
+        <Form.TextArea
+          id="description"
+          title="Describe the CLI tool"
+          placeholder={
+            "e.g. GitHub CLI (gh) for managing repos, PRs, and issues from the command line\n\n" +
+            "The AI agent will check installation, research docs, and create a guide."
+          }
+          autoFocus
+        />
+        {error && <Form.Description title="Error" text={error} />}
+      </Form>
+    );
+  }
+
+  if (step === "cli-done") {
+    const cfg = cliConfig;
+    return (
+      <Detail
+        markdown={[
+          `# ${cfg ? "CLI Tool added" : "Done"}`,
+          "",
+          cfg ? `**Name:** ${cfg.name}` : "",
+          cfg ? `**Command:** \`${cfg.command}\`` : "",
+          cfg?.description ? `**Description:** ${cfg.description}` : "",
+          "",
+          "The CLI guide is available via `get-capability-guide`.",
+          "CLI tools are callable through `call-capability` with the subcommand and flags as the path field.",
+        ].join("\n")}
+        actions={
+          <ActionPanel>
+            <Action
+              title="Done"
+              onAction={async () => {
+                await showHUD(cfg ? `${cfg.name} ready` : "CLI tool added");
                 await popToRoot();
               }}
             />

@@ -1,5 +1,16 @@
 # Changelog
 
+## [CLI connectors + call-capability verbosity] - 2026-03-12
+
+- CLI tool connectors: wrap shell CLIs (gh, vercel, kubectl, etc.) so Raycast AI can execute commands and report results
+- AI scaffolding for CLI tools: agent checks installation, researches docs, writes config and guide
+- Manual add mode for CLI tools: form-based add with name, command, description
+- CLI tools appear in search-capabilities, list-capabilities, get-capability-guide
+- `call-capability` executes CLI commands with the subcommand and flags as the path field (30s timeout, 50KB output limit)
+- Output header `[Source Name] METHOD path` added to all call-capability responses for better scannability
+- Manage Capabilities: CLI Tools section with edit, edit with AI, enable/disable, remove actions
+- Edit with AI supports CLI tools
+
 ## [MCP calls via call-capability] - 2026-03-11
 
 - `call-capability` now connects to configured MCP servers over stdio and can invoke MCP tools/resources/prompts instead of rejecting MCP slugs

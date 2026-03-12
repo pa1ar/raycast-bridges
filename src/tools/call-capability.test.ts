@@ -11,6 +11,9 @@ describe("call-capability", () => {
     vi.doMock("../lib/skills", () => ({
       listSkillNames: () => [],
     }));
+    vi.doMock("../lib/clis", () => ({
+      readCliConfig: () => null,
+    }));
     vi.doMock("../lib/mcps", () => ({
       readMcpConfig: () => ({
         slug: "craft-docs",
@@ -53,7 +56,8 @@ describe("call-capability", () => {
         credential: undefined,
       },
     );
-    expect(result.text).toBe('{"ok":true}');
+    expect(result.text).toContain('{"ok":true}');
+    expect(result.text).toContain("[Craft Docs]");
   });
 
   it("returns invalid JSON before attempting MCP call", async () => {
@@ -61,6 +65,9 @@ describe("call-capability", () => {
 
     vi.doMock("../lib/skills", () => ({
       listSkillNames: () => [],
+    }));
+    vi.doMock("../lib/clis", () => ({
+      readCliConfig: () => null,
     }));
     vi.doMock("../lib/mcps", () => ({
       readMcpConfig: () => ({

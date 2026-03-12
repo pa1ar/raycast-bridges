@@ -1,9 +1,10 @@
 import { readGuide, readSourceConfig } from "../lib/sources";
 import { readSkillMd } from "../lib/skills";
 import { readMcpConfig, readMcpGuide } from "../lib/mcps";
+import { readCliConfig, readCliGuide } from "../lib/clis";
 
 interface Input {
-  /** slug of an API source, MCP server, or name of a skill */
+  /** slug of an API source, MCP server, CLI tool, or name of a skill */
   source: string;
 }
 
@@ -71,6 +72,37 @@ export default async function getCapabilityGuide(
         "",
         "Call it via call-capability using MCP pseudo-paths.",
         "Examples: GET /tools, POST /tools/<tool-name>/call, GET /resources, POST /resources/read.",
+      ].join("\n"),
+    };
+  }
+
+  // try CLI tool
+  const cliCfg = readCliConfig(input.source);
+  if (cliCfg) {
+    const guide = readCliGuide(input.source);
+    const meta = [
+      `# Guide: ${cliCfg.name} (CLI Tool)`,
+      `Command: \`${cliCfg.command}\``,
+      "",
+    ];
+
+    if (!guide) {
+      return {
+        text: [
+          ...meta,
+          "No guide available for this CLI tool.",
+          "",
+          "Call via call-capability with the subcommand and flags as the path field.",
+        ].join("\n"),
+      };
+    }
+
+    return {
+      text: [
+        ...meta,
+        guide,
+        "",
+        "Call via call-capability with the subcommand and flags as the path field.",
       ].join("\n"),
     };
   }

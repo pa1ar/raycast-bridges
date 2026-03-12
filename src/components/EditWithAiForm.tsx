@@ -13,7 +13,7 @@ import { ScaffoldProgress } from "./ScaffoldProgress";
 
 interface Props {
   slug: string;
-  type: "api" | "mcp" | "skill";
+  type: "api" | "mcp" | "skill" | "cli";
   name: string;
   onDone: () => void;
 }

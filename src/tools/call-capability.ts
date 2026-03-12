@@ -3,6 +3,8 @@ import { callApi } from "../lib/api-call";
 import { readCredential, readSourceConfig } from "../lib/sources";
 import { listSkillNames } from "../lib/skills";
 import { readMcpConfig, readMcpCredential } from "../lib/mcps";
+import { readCliConfig } from "../lib/clis";
+import { execCli } from "../lib/cli-exec";
 import { callMcp } from "../lib/mcp-client";
 
 interface Input {
@@ -14,6 +16,10 @@ interface Input {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   /** Query params (GET) or request body (POST/PUT/PATCH), as a JSON string */
   params?: string;
+}
+
+function header(name: string, method: string, path: string): string {
+  return `[${name}] ${method} ${path}\n\n`;
 }
 
 export default async function callCapability(
@@ -34,6 +40,25 @@ export default async function callCapability(
     };
   }
 
+  // CLI tool
+  const cliCfg = readCliConfig(input.source);
+  if (cliCfg) {
+    if (!cliCfg.enabled) {
+      return { text: `Capability '${input.source}' is disabled.` };
+    }
+    const result = execCli(cliCfg.command, input.path);
+    const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    if (result.exitCode !== 0) {
+      return {
+        text:
+          header(cliCfg.name, input.method, input.path) +
+          `Exit code ${result.exitCode}:\n${output}`,
+      };
+    }
+    return { text: header(cliCfg.name, input.method, input.path) + output };
+  }
+
+  // MCP server
   const mcpCfg = readMcpConfig(input.source);
   if (mcpCfg) {
     try {
@@ -48,7 +73,7 @@ export default async function callCapability(
           credential: readMcpCredential(mcpCfg.slug) ?? undefined,
         },
       );
-      return { text: result };
+      return { text: header(mcpCfg.name, input.method, input.path) + result };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
@@ -57,6 +82,7 @@ export default async function callCapability(
     }
   }
 
+  // API source
   const config = readSourceConfig(input.source);
   if (!config) {
     return {
@@ -86,9 +112,11 @@ export default async function callCapability(
 
   if (!result.ok) {
     return {
-      text: `${config.name} returned HTTP ${result.status}:\n${result.body}`,
+      text:
+        header(config.name, input.method, input.path) +
+        `HTTP ${result.status}:\n${result.body}`,
     };
   }
 
-  return { text: result.body };
+  return { text: header(config.name, input.method, input.path) + result.body };
 }

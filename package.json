@@ -71,7 +71,7 @@
     {
       "name": "call-capability",
       "title": "Call Capability",
-      "description": "Call a capability. Supports authenticated REST APIs and MCP servers via pseudo-paths like /tools and /tools/<tool>/call. Always call get-capability-guide first."
+      "description": "Call a capability. Supports authenticated REST APIs, MCP servers (pseudo-paths like /tools), and CLI tools (subcommand as path). Always call get-capability-guide first."
     }
   ],
   "dependencies": {

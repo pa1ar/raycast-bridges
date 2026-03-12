@@ -1,6 +1,7 @@
 import { loadAllSources } from "../lib/sources";
 import { loadAllSkills } from "../lib/skills";
 import { loadAllMcps } from "../lib/mcps";
+import { loadAllClis } from "../lib/clis";
 
 interface Input {
   /** search query — keywords describing what the user wants to do (e.g. "calendar events", "send email", "craft docs") */
@@ -11,7 +12,7 @@ interface Match {
   slug: string;
   name: string;
   description: string;
-  type: "api" | "skill" | "mcp";
+  type: "api" | "skill" | "mcp" | "cli";
   isAuthenticated?: boolean;
   matchedFields: string[];
   score: number;
@@ -30,7 +31,8 @@ export default async function searchCapabilities(
   const sources = loadAllSources();
   const skills = loadAllSkills();
   const mcps = loadAllMcps();
-  const total = sources.length + skills.length + mcps.length;
+  const clis = loadAllClis();
+  const total = sources.length + skills.length + mcps.length + clis.length;
 
   if (total === 0) {
     return {
@@ -40,7 +42,7 @@ export default async function searchCapabilities(
 
   // if few capabilities, skip search and return all
   if (total <= LIST_ALL_THRESHOLD) {
-    return { text: formatAll(sources, skills, mcps) };
+    return { text: formatAll(sources, skills, mcps, clis) };
   }
 
   const queryWords = input.query
@@ -49,7 +51,7 @@ export default async function searchCapabilities(
     .filter((w) => w.length > 1);
 
   if (queryWords.length === 0) {
-    return { text: formatAll(sources, skills, mcps) };
+    return { text: formatAll(sources, skills, mcps, clis) };
   }
 
   const matches: Match[] = [];
@@ -120,6 +122,39 @@ export default async function searchCapabilities(
     }
   }
 
+  for (const c of clis) {
+    const fields: [string, string][] = [
+      ["slug", c.config.slug],
+      ["name", c.config.name],
+      ["description", c.config.description ?? ""],
+      ["command", c.config.command],
+      ["guide", c.guide],
+    ];
+
+    const matchedFields: string[] = [];
+    let score = 0;
+    for (const [fieldName, fieldValue] of fields) {
+      const hits = searchText(fieldValue, queryWords);
+      if (hits.length > 0) {
+        matchedFields.push(fieldName);
+        const weight = fieldName === "guide" ? 1 : 3;
+        score += hits.length * weight;
+      }
+    }
+
+    if (score > 0) {
+      matches.push({
+        slug: c.config.slug,
+        name: c.config.name,
+        description: c.config.description ?? c.config.command,
+        type: "cli",
+        isAuthenticated: c.isAuthenticated,
+        matchedFields,
+        score,
+      });
+    }
+  }
+
   for (const sk of skills) {
     const fields: [string, string][] = [
       ["name", sk.name],
@@ -165,7 +200,8 @@ export default async function searchCapabilities(
 
   const lines: string[] = [`Capabilities matching "${input.query}":`, ""];
   for (const m of matches) {
-    const typeTag = m.type === "mcp" ? " [MCP]" : "";
+    const typeTag =
+      m.type === "mcp" ? " [MCP]" : m.type === "cli" ? " [CLI]" : "";
     const auth =
       m.type === "api" || m.type === "mcp"
         ? ` [${m.isAuthenticated ? "authenticated" : "NOT authenticated"}]`
@@ -174,7 +210,7 @@ export default async function searchCapabilities(
   }
   lines.push("");
   lines.push(
-    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths like /tools or /tools/<tool>/call for MCP servers.",
+    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths for MCP servers, subcommand+flags as path for CLI tools.",
   );
 
   return { text: lines.join("\n") };
@@ -184,6 +220,7 @@ function formatAll(
   sources: ReturnType<typeof loadAllSources>,
   skills: ReturnType<typeof loadAllSkills>,
   mcps: ReturnType<typeof loadAllMcps>,
+  clis: ReturnType<typeof loadAllClis>,
 ): string {
   const lines: string[] = ["All capabilities (short list):", ""];
 
@@ -197,13 +234,18 @@ function formatAll(
       `- ${m.config.slug}: ${m.config.name} [MCP] — ${m.config.description ?? m.config.command} [${m.isAuthenticated ? "ready" : "needs setup"}]`,
     );
   }
+  for (const c of clis) {
+    lines.push(
+      `- ${c.config.slug}: ${c.config.name} [CLI] — ${c.config.description ?? c.config.command}`,
+    );
+  }
   for (const sk of skills) {
     lines.push(`- ${sk.name}: ${sk.description}`);
   }
 
   lines.push("");
   lines.push(
-    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths like /tools or /tools/<tool>/call for MCP servers.",
+    "Use get-capability-guide with the slug first. Then call-capability: REST paths for APIs, MCP pseudo-paths for MCP servers, subcommand+flags as path for CLI tools.",
   );
   return lines.join("\n");
 }

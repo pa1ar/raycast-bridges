@@ -62,3 +62,20 @@ export interface LoadedMcp {
   guide: string;
   isAuthenticated: boolean;
 }
+
+export interface CliConfig {
+  slug: string;
+  name: string;
+  description?: string;
+  command: string;
+  authType: AuthType;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface LoadedCli {
+  config: CliConfig;
+  guide: string;
+  isAuthenticated: boolean;
+}

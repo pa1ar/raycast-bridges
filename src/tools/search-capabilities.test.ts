@@ -22,15 +22,18 @@ describe("search-capabilities", () => {
   let tempSourcesDir: string;
   let tempSkillsDir: string;
   let tempMcpsDir: string;
+  let tempClisDir: string;
 
   beforeEach(() => {
     vi.resetModules();
     tempSourcesDir = join(tmpdir(), `search-sources-${Date.now()}`);
     tempSkillsDir = join(tmpdir(), `search-skills-${Date.now()}`);
     tempMcpsDir = join(tmpdir(), `search-mcps-${Date.now()}`);
+    tempClisDir = join(tmpdir(), `search-clis-${Date.now()}`);
     mkdirSync(tempSourcesDir, { recursive: true });
     mkdirSync(tempSkillsDir, { recursive: true });
     mkdirSync(tempMcpsDir, { recursive: true });
+    mkdirSync(tempClisDir, { recursive: true });
 
     vi.doMock("../lib/paths", async (importOriginal) => {
       const orig = (await importOriginal()) as Record<string, unknown>;
@@ -51,6 +54,10 @@ describe("search-capabilities", () => {
         mcpGuidePath: (slug: string) => join(tempMcpsDir, slug, "guide.md"),
         mcpCredentialCachePath: (slug: string) =>
           join(tempMcpsDir, slug, ".credential-cache.json"),
+        CLIS_DIR: tempClisDir,
+        cliDir: (slug: string) => join(tempClisDir, slug),
+        cliConfigPath: (slug: string) => join(tempClisDir, slug, "config.json"),
+        cliGuidePath: (slug: string) => join(tempClisDir, slug, "guide.md"),
         skillDir: (name: string) => join(tempSkillsDir, name),
         skillMdPath: (name: string) => join(tempSkillsDir, name, "SKILL.md"),
       };
@@ -71,6 +78,11 @@ describe("search-capabilities", () => {
     }
     try {
       rmSync(tempMcpsDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+    try {
+      rmSync(tempClisDir, { recursive: true });
     } catch {
       /* ignore */
     }
