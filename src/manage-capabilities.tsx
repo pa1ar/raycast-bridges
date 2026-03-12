@@ -38,7 +38,7 @@ import { EditSkillForm } from "./components/EditSkillForm";
 import { EditMcpForm } from "./components/EditMcpForm";
 import { EditWithAiForm } from "./components/EditWithAiForm";
 import { OAuthCodeForm } from "./components/OAuthCodeForm";
-import { callMcp } from "./lib/mcp-client";
+import { authorizeRemoteMcp, callMcp } from "./lib/mcp-client";
 
 export default function ManageCapabilities() {
   const [sources, setSources] = useState<LoadedSource[]>(() =>
@@ -164,17 +164,25 @@ export default function ManageCapabilities() {
     });
 
     try {
-      await callMcp(
-        config,
-        {
-          path: "/ping",
-          method: "GET",
-        },
-        {
+      if (config.url) {
+        const tokens = await authorizeRemoteMcp(config, {
+          openAuthorizationUrl: open,
           timeoutMs: 180_000,
-        },
-      );
-      writeMcpCredential(config.slug, "oauth-connected");
+        });
+        writeMcpCredential(config.slug, tokens.accessToken, tokens.expiresAt);
+      } else {
+        await callMcp(
+          config,
+          {
+            path: "/ping",
+            method: "GET",
+          },
+          {
+            timeoutMs: 180_000,
+          },
+        );
+        writeMcpCredential(config.slug, "oauth-connected");
+      }
       toast.style = Toast.Style.Success;
       toast.title = `${config.name} connected`;
       toast.message = "MCP handshake succeeded";
@@ -283,7 +291,11 @@ export default function ManageCapabilities() {
               key={mcp.config.slug}
               icon={mcp.config.enabled ? Icon.Terminal : Icon.CircleDisabled}
               title={mcp.config.name}
-              subtitle={`${mcp.config.command}${mcp.config.args ? " " + mcp.config.args[0] : ""}`}
+              subtitle={
+                mcp.config.url
+                  ? mcp.config.url
+                  : `${mcp.config.command}${mcp.config.args ? " " + mcp.config.args[0] : ""}`
+              }
               accessories={[
                 mcp.isAuthenticated
                   ? { tag: { value: "ready", color: Color.Green } }

@@ -21,6 +21,7 @@ describe("call-capability", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }),
+      readMcpCredential: () => null,
     }));
     vi.doMock("../lib/mcp-client", () => ({
       callMcp,
@@ -48,6 +49,9 @@ describe("call-capability", () => {
         method: "POST",
         params: {},
       },
+      {
+        credential: undefined,
+      },
     );
     expect(result.text).toBe('{"ok":true}');
   });
@@ -68,6 +72,7 @@ describe("call-capability", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }),
+      readMcpCredential: () => null,
     }));
     vi.doMock("../lib/mcp-client", () => ({
       callMcp,

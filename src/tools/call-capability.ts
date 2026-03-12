@@ -2,7 +2,7 @@ import { Tool } from "@raycast/api";
 import { callApi } from "../lib/api-call";
 import { readCredential, readSourceConfig } from "../lib/sources";
 import { listSkillNames } from "../lib/skills";
-import { readMcpConfig } from "../lib/mcps";
+import { readMcpConfig, readMcpCredential } from "../lib/mcps";
 import { callMcp } from "../lib/mcp-client";
 
 interface Input {
@@ -37,11 +37,17 @@ export default async function callCapability(
   const mcpCfg = readMcpConfig(input.source);
   if (mcpCfg) {
     try {
-      const result = await callMcp(mcpCfg, {
-        path: input.path,
-        method: input.method,
-        params,
-      });
+      const result = await callMcp(
+        mcpCfg,
+        {
+          path: input.path,
+          method: input.method,
+          params,
+        },
+        {
+          credential: readMcpCredential(mcpCfg.slug) ?? undefined,
+        },
+      );
       return { text: result };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
