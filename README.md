@@ -14,7 +14,7 @@ The workflow:
 
 Everything runs locally. Nothing goes to a server.
 
-Inspired by [Craft Agents](https://github.com/craftdocs/craft-agents-oss) (open-source).
+Inspired by [Craft Agents](https://github.com/lukilabs/craft-agents-oss) (open-source).
 
 ## Capability Types
 
